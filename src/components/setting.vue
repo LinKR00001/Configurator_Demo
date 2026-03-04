@@ -40,7 +40,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useGlobalSerialManager } from '@/composables/useGlobalSerialManager'
 
@@ -51,19 +51,18 @@ const serialManager = getInstance()
 // 调试：打印 serialManager 查看其内部结构（可删除）
 console.log('serialManager:', serialManager)
 
-// 板子类型映射表
-const TARGET_NAME_MAP = {
+// 板子类型映射表 - 使用 Record 类型允许动态数字索引
+const TARGET_NAME_MAP: Record<number, string> = {
   10: 'Aquila20',
-  // 可以添加更多映射，例如：
-  // 11: 'Aquila30',
-  // 12: 'RacerX',
+  // 后续可添加更多映射
 }
 
 const flightControllerInfo = ref({
-  majorVersion: '未知',
-  minorVersion: '未知',
-  patchVersion: '未知',
-  targetId: '未知',
+  majorVersion: 0,
+  minorVersion: 0,
+  patchVersion: 0,
+  targetId: 0,
+  targetName: '未知',
 })
 
 // 响应式连接状态
@@ -81,15 +80,15 @@ const handleDisconnected = () => {
 }
 
 // 解析函数：根据接收到的字节更新飞控信息
-function parseVerMsg(bytes) {
+function parseVerMsg(bytes: Uint8Array) {
   // 假设飞控信息以特定格式发送
   // 这里需要根据实际协议调整判断条件和字段位置
   if (bytes.length >= 16 && bytes[0] === 0xFE && bytes[5] === 0x02) {
-    flightControllerInfo.value.majorVersion = bytes[9]
-    flightControllerInfo.value.minorVersion = bytes[10]
-    flightControllerInfo.value.patchVersion = bytes[11]
+    flightControllerInfo.value.majorVersion = bytes[9]!
+    flightControllerInfo.value.minorVersion = bytes[10]!
+    flightControllerInfo.value.patchVersion = bytes[11]!
     
-    const id = bytes[8]
+    const id = bytes[8]!
     flightControllerInfo.value.targetId = id // 保留原始值
     flightControllerInfo.value.targetName = TARGET_NAME_MAP[id] || `未知板型(${id})` // 映射名称，若无映射则显示原始值+提示
 
@@ -97,7 +96,7 @@ function parseVerMsg(bytes) {
 }
 
 // 处理接收到的数据
-const handleData = (event) => {
+const handleData = (event: any) => {
   const data = event.data // Uint8Array
   if (!data) return
 
@@ -140,10 +139,11 @@ const sendBytes = async () => {
     writer.releaseLock()
 
     console.log('字节发送成功', data)
-  } catch (error) {
-    console.error('发送失败', error)
-    alert('发送失败：' + error.message)
-  }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('发送失败', error);
+    alert('发送失败：' + message);
+}
 }
 </script>
 

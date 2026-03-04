@@ -2,7 +2,6 @@
 import { ref, shallowRef  } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 import SerialPanel from '@/components/SerialPanel.vue'
-import Serial from '@/components/Serial.vue'
 import { useConnection } from '@/composables/useConnection'
 import welcome from '@/components/welcome.vue'
 import receiver from '@/components/receiver.vue'
@@ -36,9 +35,6 @@ const handleSidebarSelect = (item: string) => {
       break;
     case 'receiver': 
       currentComponent.value = receiver;
-      break;
-    case 'devSerial': 
-      currentComponent.value = Serial;
       break;
     default:
       currentComponent.value = welcome;

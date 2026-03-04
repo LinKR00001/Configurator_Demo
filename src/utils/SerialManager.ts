@@ -46,10 +46,10 @@ export const DEFAULT_OPTIONS: SerialPortOptions = {
 };
 
 export class SerialManager {
-  private port: any = null;
+  public port: any = null;
   private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   private writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
-  private isConnected = false;
+  public isConnected = false;
   private isReading = false;
   private options: SerialPortOptions;
   private listeners: Map<string, Set<(event: SerialConnectionEvent) => void>> = new Map();
