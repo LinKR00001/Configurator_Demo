@@ -1,0 +1,202 @@
+
+import Receiver from './components/receiver.vue';
+
+<template>
+  <div class="sidebar">
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <a 
+          href="#"
+          @click.prevent="selectItem('welcome')"
+          :class="{ active: activeItem === 'welcome' }"
+          class="nav-item"
+        >
+          <span class="nav-label">欢迎</span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <a 
+          href="#"
+          @click.prevent="selectItem('setting')"
+          :class="{ active: activeItem === 'setting' }"
+          class="nav-item"
+        >
+          <span class="nav-label">设置</span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <a 
+          href="#"
+          @click.prevent="selectItem('receiver')"
+          :class="{ active: activeItem === 'receiver' }"
+          class="nav-item"
+        >
+          <span class="nav-label">接收机</span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <a 
+          href="#"
+          @click.prevent="selectItem('devSerial')"
+          :class="{ active: activeItem === 'devSerial' }"
+          class="nav-item"
+        >
+          <span class="nav-label">开发调试</span>
+        </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <span class="version">Configurator V2</span>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+defineProps({
+  activeItem: {
+    type: String,
+    default: 'welcome'
+  }
+})
+
+const emit = defineEmits<{
+  select: [item: string]
+}>()
+
+const selectItem = (item: string) => {
+  emit('select', item)
+}
+</script>
+
+<style scoped>
+.sidebar {
+  width: 240px;
+  background-color: var(--surface-950);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--surface-900);
+  padding: var(--spacing-lg) 0;
+  overflow-y: auto;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 0 var(--spacing-md);
+}
+
+.nav-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+.nav-section h4 {
+  margin: 0 var(--spacing-md) var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--surface-600);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+  border-radius: var(--radius-md);
+  color: var(--surface-400);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  font-size: var(--font-size-base);
+
+  &:hover {
+    background-color: var(--surface-900);
+    color: white;
+  }
+
+  &.active {
+    background-color: var(--primary-500);
+    color: var(--text-on-primary);
+    font-weight: 600;
+
+    .nav-icon {
+      transform: scale(1.2);
+    }
+  }
+}
+
+.nav-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  transition: transform var(--transition-base);
+}
+
+.nav-label {
+  flex: 1;
+}
+
+.sidebar-footer {
+  padding: 0 var(--spacing-lg);
+  margin-top: auto;
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--surface-800);
+  text-align: center;
+}
+
+.version {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--surface-600);
+}
+
+/* 滚动条 */
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: var(--surface-800);
+  border-radius: 3px;
+
+  &:hover {
+    background: var(--surface-700);
+  }
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 200px;
+  }
+
+  .sidebar-header h3 {
+    font-size: var(--font-size-base);
+  }
+
+  .nav-label {
+    display: none;
+  }
+
+  .nav-icon {
+    margin: 0 auto;
+  }
+
+  .sidebar-nav {
+    padding: 0 var(--spacing-sm);
+  }
+
+  .nav-item {
+    padding: var(--spacing-sm);
+  }
+}
+</style>

@@ -1,11 +1,192 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { ref, shallowRef  } from 'vue'
+import Sidebar from '@/components/Sidebar.vue'
+import SerialPanel from '@/components/SerialPanel.vue'
+import Serial from '@/components/Serial.vue'
+import { useConnection } from '@/composables/useConnection'
+import welcome from '@/components/welcome.vue'
+import receiver from '@/components/receiver.vue'
+import setting from '@/components/setting.vue'
+
+/**
+ * 简化页面导航 - 仅保留串口连接和 Mavlink 调试
+ * 
+ * 流程:
+ * 1. 初始加载显示 Welcome 页面
+ * 2. 用户点击 SerialPanel 的连接按钮 -> SerialManager.connect()
+ * 3. 连接成功 -> 在 DebugPanel 显示 Mavlink 消息
+ * 4. 用户点击断开连接 -> setDisconnected() 更新状态
+ */
+
+type PageType = 'welcome' | 'setting' | 'receiver'| 'devSerial'
+
+const activePage = ref<PageType>('welcome')
+const currentComponent = ref(shallowRef(welcome));
+
+const { setConnected, setDisconnected } = useConnection()
+
+const handleSidebarSelect = (item: string) => {
+  activePage.value = item as PageType
+  switch (item) {
+    case 'welcome':
+      currentComponent.value = welcome;
+      break;
+    case 'setting':
+      currentComponent.value = setting;
+      break;
+    case 'receiver': 
+      currentComponent.value = receiver;
+      break;
+    case 'devSerial': 
+      currentComponent.value = Serial;
+      break;
+    default:
+      currentComponent.value = welcome;
+  }
+}
+
+/**
+ * 串口连接成功时的处理
+ */
+const handleSerialConnected = (port: string) => {
+  setConnected(port)
+  activePage.value = 'setting'
+  currentComponent.value = setting;
+}
+
+/**
+ * 串口断开连接时的处理
+ */
+const handleSerialDisconnected = () => {
+  setDisconnected()
+}
+
+/**
+ * 串口连接错误时的处理
+ */
+const handleSerialError = (error: string) => {
+  console.error('Serial connection error:', error)
+}
+</script>
 
 <template>
-  <h1>You did it!</h1>
-  <p>
-    Visit <a href="https://vuejs.org/" target="_blank" rel="noopener">vuejs.org</a> to read the
-    documentation
-  </p>
+  <div id="app" class="app-layout">
+    <!-- 顶部 Topbar: BETAFPV + 串口连接 -->
+    <header class="top-bar">
+      <div class="topbar-left">
+          <span class="logo-text">BETAFPV</span>
+      </div>
+      <div class="topbar-right">
+        <SerialPanel 
+          @connected="handleSerialConnected"
+          @disconnected="handleSerialDisconnected"
+          @error="handleSerialError"
+        />
+      </div>
+    </header>
+
+    <!-- 主容器: 侧边栏 + 内容 -->
+    <div class="main-layout">
+      <!-- 左侧边栏 -->
+      <Sidebar 
+        :activeItem="activePage"
+        @select="handleSidebarSelect"
+      />
+
+    <!-- 内容区域：动态组件 -->
+    <main class="content">
+      <component :is="currentComponent" />
+    </main>
+
+
+    </div>
+  </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: var(--surface-100);
+  overflow: hidden;
+}
+
+/* 顶部栏 */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background-color: var(--surface-50);
+  border-bottom: 2px solid var(--primary-500);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.logo-icon {
+  font-size: 28px;
+}
+
+.logo-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary-500);
+  letter-spacing: 1px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+/* 主容器 */
+.main-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 内容区域 */
+.content-area {
+  flex: 1;
+  overflow: hidden;
+  background-color: var(--surface-100);
+}
+
+.blank-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .top-bar {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .logo-icon {
+    font-size: 24px;
+  }
+
+  .logo-text {
+    font-size: 16px;
+  }
+}
+</style>
