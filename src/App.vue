@@ -6,6 +6,7 @@ import { useConnection } from '@/composables/useConnection'
 import welcome from '@/components/welcome.vue'
 import receiver from '@/components/receiver.vue'
 import setting from '@/components/setting.vue'
+import DevelopModePanel from '@/components/DevelopModePanel.vue'
 
 /**
  * 简化页面导航 - 仅保留串口连接和 Mavlink 调试
@@ -33,8 +34,11 @@ const handleSidebarSelect = (item: string) => {
     case 'setting':
       currentComponent.value = setting;
       break;
-    case 'receiver': 
+    case 'receiver':
       currentComponent.value = receiver;
+      break;
+    case 'devSerial':
+      currentComponent.value = DevelopModePanel;
       break;
     default:
       currentComponent.value = welcome;
