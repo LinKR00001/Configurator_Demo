@@ -1,10 +1,23 @@
 <template>
+    <!-- 已连接时显示飞控信息 -->
+    <template v-if="isConnected">
+      <div class="fc-info-chip">
+        <span class="fc-version">
+          v{{ fcInfo.majorVersion }}.{{ fcInfo.minorVersion }}.{{ fcInfo.patchVersion }}
+        </span>
+        <span class="fc-divider">|</span>
+        <span class="fc-target">{{ fcInfo.targetName }}</span>
+      </div>
+    </template>
+
   <div class="serial-header">
     <!-- 连接状态指示器（圆点 + 文本） -->
     <div class="status-indicator" :class="{ connected: isConnected }">
       <span class="status-dot"></span>
       <span class="status-text">{{ isConnected ? '已连接' : '未连接' }}</span>
     </div>
+
+
 
     <!-- 未连接时显示波特率选择 + 连接按钮 -->
     <template v-if="!isConnected">
@@ -32,6 +45,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { DEFAULT_BAUD_RATES, DEFAULT_OPTIONS } from '@/utils/SerialManager'
 import { useGlobalSerialManager } from '@/composables/useGlobalSerialManager'
+import { useFCInfo } from '@/composables/useFCInfo'
 
 const emit = defineEmits<{
   connected: [port: string]
@@ -41,6 +55,8 @@ const emit = defineEmits<{
 
 const { getInstance } = useGlobalSerialManager()
 const serialManager = getInstance()
+
+const { fcInfo, init: initFCInfo } = useFCInfo()
 
 const isConnected = ref(false)
 const selectedBaudRate = ref(DEFAULT_OPTIONS.baudRate || 115200)
@@ -83,6 +99,8 @@ onMounted(() => {
   serialManager.addEventListener('connected', handleConnected)
   serialManager.addEventListener('disconnected', handleDisconnected)
   serialManager.addEventListener('error', handleError)
+  // 启动全局飞控信息轮询（仅首次调用时注册，幂等）
+  initFCInfo()
 })
 
 onUnmounted(async () => {
@@ -128,6 +146,34 @@ onUnmounted(async () => {
 .status-text {
   font-size: 12px;
   font-weight: 500;
+}
+
+/* 飞控信息 chip */
+.fc-info-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  background-color: var(--surface-200);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.fc-version {
+  font-weight: 600;
+  color: var(--primary-600);
+}
+
+.fc-divider {
+  color: var(--border-dark);
+}
+
+.fc-target {
+  color: var(--text-secondary);
 }
 
 /* 波特率下拉框 */
