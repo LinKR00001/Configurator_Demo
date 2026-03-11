@@ -268,7 +268,7 @@ function finishBlackboxRead() {
   saveBlackboxFile(combined)
 }
 
-function saveBlackboxFile(data: Uint8Array) {
+function saveBlackboxFile(data: Uint8Array<ArrayBuffer>) {
   const now = new Date()
   const dateStr = now.getFullYear().toString().slice(2)
     + String(now.getMonth() + 1).padStart(2, '0')
