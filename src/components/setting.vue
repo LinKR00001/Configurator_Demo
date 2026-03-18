@@ -35,23 +35,6 @@
       </div>
     </div>
 
-    <!-- 调试工具面板 -->
-    <div class="panel">
-      <div class="panel-header">
-        <h2>调试工具</h2>
-        <button @click="sendBytes" :disabled="!isConnected">发送测试字节</button>
-      </div>
-      <div v-if="receivedData" class="terminal">
-        <div class="terminal-header">
-          <span class="terminal-title">接收数据</span>
-          <button class="btn-secondary btn-small" @click="receivedData = ''">清除</button>
-        </div>
-        <pre class="terminal-body">{{ receivedData }}</pre>
-      </div>
-      <div v-else class="terminal terminal-empty">
-        <span>暂无数据，点击"发送测试字节"开始调试</span>
-      </div>
-    </div>
   </div>
 </template>
 
