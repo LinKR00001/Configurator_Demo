@@ -5,11 +5,13 @@ import SerialPanel from '@/components/SerialPanel.vue'
 import { useConnection } from '@/composables/useConnection'
 import welcome from '@/components/Welcome.vue'
 import receiver from '@/components/Receiver.vue'
-import setting from '@/components/Setting.vue'
+import Message from '@/components/Message.vue'  
 import DevelopModePanel from '@/components/DevelopModePanel.vue'
-import GyroDebug from '@/components/Gyro.vue'
-import PidDebug from '@/components/PidSetting.vue'
-
+import Gyro from '@/components/Gyro.vue'
+import Pid from '@/components/PidSetting.vue'
+import Sensor from '@/components/Sensor.vue'
+import MotorTest from '@/components/Motor.vue'
+import Firmware from '@/components/Firmware.vue'
 /**
  * 简化页面导航 - 仅保留串口连接和 Mavlink 调试
  * 
@@ -20,7 +22,7 @@ import PidDebug from '@/components/PidSetting.vue'
  * 4. 用户点击断开连接 -> setDisconnected() 更新状态
  */
 
-type PageType = 'welcome' | 'setting' | 'receiver' | 'pidDebug' | 'devSerial' | 'gyroDebug'
+type PageType = 'welcome' | 'message' | 'receiver' | 'pidDebug' | 'devSerial' | 'gyroDebug'
 
 const activePage = ref<PageType>('welcome')
 const currentComponent = ref(shallowRef(welcome));
@@ -33,21 +35,31 @@ const handleSidebarSelect = (item: string) => {
     case 'welcome':
       currentComponent.value = welcome;
       break;
-    case 'setting':
-      currentComponent.value = setting;
+    case 'message':
+      currentComponent.value = Message;
+      break;
+    case 'gyro':
+      currentComponent.value = Gyro;
       break;
     case 'receiver':
       currentComponent.value = receiver;
       break;
-    case 'pidDebug':
-      currentComponent.value = PidDebug;
+    case 'pid':
+      currentComponent.value = Pid;
+      break;
+    case 'sensor':
+      currentComponent.value = Sensor;
+      break;
+    case 'motorTest':
+      currentComponent.value = MotorTest;
+      break;
+    case 'firmware':
+      currentComponent.value = Firmware;
       break;
     case 'devSerial':
       currentComponent.value = DevelopModePanel;
       break;
-    case 'gyroDebug':
-      currentComponent.value = GyroDebug;
-      break;
+
     default:
       currentComponent.value = welcome;
   }
@@ -58,8 +70,8 @@ const handleSidebarSelect = (item: string) => {
  */
 const handleSerialConnected = (port: string) => {
   setConnected(port)
-  activePage.value = 'setting'
-  currentComponent.value = setting;
+  activePage.value = 'message'
+  currentComponent.value = Message;
 }
 
 /**

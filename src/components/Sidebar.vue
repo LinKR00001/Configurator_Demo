@@ -18,11 +18,22 @@ import Receiver from './components/receiver.vue';
       <div class="nav-section">
         <a 
           href="#"
-          @click.prevent="selectItem('setting')"
-          :class="{ active: activeItem === 'setting' }"
+          @click.prevent="selectItem('message')"
+          :class="{ active: activeItem === 'message' }"
           class="nav-item"
         >
-          <span class="nav-label">设置</span>
+          <span class="nav-label">飞控信息</span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <a
+          href="#"
+          @click.prevent="selectItem('gyro')"
+          :class="{ active: activeItem === 'gyro' }"
+          class="nav-item"
+        >
+          <span class="nav-label">陀螺仪</span>
         </a>
       </div>
 
@@ -40,22 +51,43 @@ import Receiver from './components/receiver.vue';
       <div class="nav-section">
         <a
           href="#"
-          @click.prevent="selectItem('pidDebug')"
-          :class="{ active: activeItem === 'pidDebug' }"
+          @click.prevent="selectItem('pid')"
+          :class="{ active: activeItem === 'pid' }"
           class="nav-item"
         >
-          <span class="nav-label">PID 调试</span>
+          <span class="nav-label">PID调校</span>
         </a>
       </div>
 
       <div class="nav-section">
         <a
           href="#"
-          @click.prevent="selectItem('gyroDebug')"
-          :class="{ active: activeItem === 'gyroDebug' }"
+          @click.prevent="selectItem('sensor')"
+          :class="{ active: activeItem === 'sensor' }"
           class="nav-item"
         >
-          <span class="nav-label">调试陀螺仪</span>
+          <span class="nav-label">传感器数据</span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <a
+          href="#"
+          @click.prevent="selectItem('motorTest')"
+          :class="{ active: activeItem === 'motorTest' }"
+          class="nav-item"
+        >
+          <span class="nav-label">电机测试</span>
+        </a>
+      </div>
+      <div class="nav-section">
+        <a
+          href="#"
+          @click.prevent="selectItem('firmware')"
+          :class="{ active: activeItem === 'firmware' }"
+          class="nav-item"
+        >
+          <span class="nav-label">固件升级</span>
         </a>
       </div>
 

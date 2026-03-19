@@ -3,8 +3,8 @@
     <!-- 页面标题 -->
     <div class="page-header">
       <div class="page-header-left">
-        <h1>设置</h1>
-        <p class="page-subtitle">配置 BETAFPV 飞控</p>
+        <h1>飞控信息</h1>
+        <p class="page-subtitle">查看飞控设备信息</p>
       </div>
       <div :class="['status-indicator', isConnected ? 'connected' : 'disconnected']">
         <span class="status-dot"></span>

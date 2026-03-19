@@ -4,8 +4,8 @@
     <!-- 标题栏 -->
     <div class="page-header">
       <div class="page-header-left">
-        <h1>PID 调试</h1>
-        <p class="page-subtitle">读取飞控三轴 PID 参数（MSG_ID=14）</p>
+        <h1>PID调试</h1>
+        <p class="page-subtitle">读取飞控三轴PID参数</p>
       </div>
       <div class="header-right">
         <div :class="['status-indicator', connectionState.isConnected ? 'connected' : 'disconnected']">

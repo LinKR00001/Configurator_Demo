@@ -3,8 +3,8 @@
     <!-- 页面标题 -->
     <div class="page-header">
       <div class="page-header-left">
-        <h1>调试陀螺仪</h1>
-        <p class="page-subtitle">实时解析 MAVLink IMU 数据（MSG_ID=4）</p>
+        <h1>陀螺仪</h1>
+        <p class="page-subtitle">实时显示IMU相关数据</p>
       </div>
       <div class="header-right">
         <div :class="['status-indicator', connectionState.isConnected ? 'connected' : 'disconnected']">

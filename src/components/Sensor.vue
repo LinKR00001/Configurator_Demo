@@ -3,8 +3,8 @@
     <!-- 页面标题 -->
     <div class="page-header">
       <div class="page-header-left">
-        <h1>接收机</h1>
-        <p class="page-subtitle">实时显示遥控器通道数据</p>
+        <h1>传感器数据</h1>
+        <p class="page-subtitle">实时显示传感器数据</p>
       </div>
       <div class="header-right">
         <!-- 连接状态 -->
@@ -22,60 +22,6 @@
       <p>请先通过顶部串口面板连接飞控</p>
     </div>
 
-    <template v-else>
-      <!-- 通道列表 -->
-      <div class="channels-panel">
-        <div class="channels-header">
-          <span class="col-name">通道</span>
-          <span class="col-bar">数值范围</span>
-          <span class="col-val">原始值</span>
-        </div>
-
-        <div
-          v-for="ch in channels"
-          :key="ch.index"
-          :class="['channel-row', { 'channel-row--active': ch.active }]"
-        >
-          <!-- 通道标签 -->
-          <div class="ch-label">
-            <span class="ch-num">CH{{ ch.index }}</span>
-            <span class="ch-name">{{ ch.name }}</span>
-          </div>
-
-          <!-- 进度条 -->
-          <div class="ch-bar-wrap">
-            <!-- 中点参考线 -->
-            <div class="ch-bar-center"></div>
-            <!-- 填充条：从中点向两侧延伸 -->
-            <div
-              class="ch-bar-fill"
-              :style="barStyle(ch.value)"
-            ></div>
-            <!-- 当前位置指针 -->
-            <div
-              class="ch-bar-cursor"
-              :style="{ left: barPercent(ch.value) + '%' }"
-            ></div>
-          </div>
-
-          <!-- 原始数值 -->
-          <div :class="['ch-value', { 'ch-value--active': ch.active }]">
-            {{ ch.value }}
-          </div>
-        </div>
-      </div>
-
-      <!-- 底部统计 -->
-      <div class="stats-row">
-        <span class="stat-item">已接收帧：<strong>{{ frameCount }}</strong></span>
-        <span class="stat-item">活跃通道数：<strong>{{ rcCount }}</strong></span>
-        <span class="stat-item">
-          RSSI：<strong :class="rssiClass">{{ rssiText }}</strong>
-        </span>
-        <span class="stat-item">已发送请求：<strong>{{ txCount }}</strong></span>
-        <span class="stat-item" v-if="updatedAt">最后更新：<strong>{{ updatedAt }}</strong></span>
-      </div>
-    </template>
   </div>
 </template>
 
