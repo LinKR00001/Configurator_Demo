@@ -157,7 +157,7 @@ function barPercent(value: number): number {
   return Math.max(0, Math.min(100, (value - RC_MIN) / (RC_MAX - RC_MIN) * 100))
 }
 
-function barStyle(value: number): object {
+function barStyle(value: number): Record<string, string> {
   const pct    = barPercent(value)
   const center = 50
   if (pct >= center) {

@@ -7,8 +7,8 @@ import welcome from '@/components/Welcome.vue'
 import receiver from '@/components/Receiver.vue'
 import setting from '@/components/Setting.vue'
 import DevelopModePanel from '@/components/DevelopModePanel.vue'
-import GyroDebug from '@/components/GyroDebug.vue'
-import PidDebug from '@/components/PidDebug.vue'
+import GyroDebug from '@/components/Gyro.vue'
+import PidDebug from '@/components/PidSetting.vue'
 
 /**
  * 简化页面导航 - 仅保留串口连接和 Mavlink 调试
