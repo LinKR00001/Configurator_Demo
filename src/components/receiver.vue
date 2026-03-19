@@ -4,7 +4,7 @@
     <div class="page-header">
       <div class="page-header-left">
         <h1>接收机</h1>
-        <p class="page-subtitle">实时显示遥控器通道数据（MAVLink RC_CHANNELS, MSG_ID=7）</p>
+        <p class="page-subtitle">实时显示遥控器通道数据（MSG_ID=7）</p>
       </div>
       <div class="header-right">
         <!-- RSSI -->

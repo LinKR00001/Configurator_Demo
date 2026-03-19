@@ -12,29 +12,36 @@
       </div>
     </div>
 
-    <!-- 飞控信息面板 -->
-    <div class="panel">
-      <div class="panel-header">
-        <h2>飞控信息</h2>
-      </div>
-      <div class="info-grid">
-        <div class="info-item">
-          <span class="info-label">固件版本</span>
-          <span class="info-value">
-            {{ fcInfo.majorVersion }}.{{ fcInfo.minorVersion }}.{{ fcInfo.patchVersion }}
-          </span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">板子类型</span>
-          <span class="info-value">{{ fcInfo.targetName }}</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">板子 ID</span>
-          <span class="info-value">{{ fcInfo.targetId || '—' }}</span>
-        </div>
-      </div>
+    <!-- 未连接提示 -->
+    <div v-if="!isConnected" class="not-connected">
+      <span class="not-connected-icon">○</span>
+      <p>请先通过顶部串口面板连接飞控</p>
     </div>
 
+    <template v-else>
+      <!-- 飞控信息面板 -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>飞控信息</h2>
+        </div>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">固件版本</span>
+            <span class="info-value">
+              {{ fcInfo.majorVersion }}.{{ fcInfo.minorVersion }}.{{ fcInfo.patchVersion }}
+            </span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">板子类型</span>
+            <span class="info-value">{{ fcInfo.targetName }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">板子 ID</span>
+            <span class="info-value">{{ fcInfo.targetId || '—' }}</span>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -92,6 +99,15 @@ const sendBytes = async () => {
 </script>
 
 <style scoped>
+
+/* 未连接 */
+.not-connected {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: var(--spacing-2xl);
+  gap: var(--spacing-md); color: var(--text-disabled);
+}
+.not-connected-icon { font-size: 48px; opacity: 0.3; }
+
 .setting-container {
   padding: var(--spacing-2xl);
   max-width: 860px;

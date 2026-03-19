@@ -5,7 +5,7 @@
     <div class="page-header">
       <div class="page-header-left">
         <h1>PID 调试</h1>
-        <p class="page-subtitle">MAVLink MSG_ID=14 · 读取飞控三轴 PID 参数</p>
+        <p class="page-subtitle">读取飞控三轴 PID 参数（MSG_ID=14）</p>
       </div>
       <div class="header-right">
         <div :class="['status-indicator', connectionState.isConnected ? 'connected' : 'disconnected']">
@@ -21,12 +21,22 @@
         >
           读取
         </button>
+
+        <button
+          v-if="connectionState.isConnected"
+          :class="['btn-sm', 'btn-primary']"
+          @click="startPolling"
+        >
+          设置
+        </button>
+
       </div>
     </div>
 
-    <!-- 未收到数据提示 -->
-    <div v-if="!received" class="empty-hint">
-      <span>尚未收到飞控数据，请点击「读取」</span>
+    <!-- 未连接提示 -->
+    <div v-if="!connectionState.isConnected" class="not-connected">
+      <span class="not-connected-icon">○</span>
+      <p>请先通过顶部串口面板连接飞控</p>
     </div>
 
     <!-- PID 数值展示 -->
@@ -42,15 +52,21 @@
         <div class="pid-values">
           <div class="pid-item">
             <span class="pid-key p-key">P</span>
-            <span class="pid-val">{{ pid.rollP.toFixed(3) }}</span>
+            <div class="input-group">
+              <input type="number" v-model.number="pid.rollP" step="1" class="pid-input" min="0" max="100" />
+            </div>
           </div>
           <div class="pid-item">
             <span class="pid-key i-key">I</span>
-            <span class="pid-val">{{ pid.rollI.toFixed(3) }}</span>
+            <div class="input-group">
+              <input type="number" v-model.number="pid.rollI" step="1" class="pid-input" min="0" max="100" />
+            </div>
           </div>
           <div class="pid-item">
             <span class="pid-key d-key">D</span>
-            <span class="pid-val">{{ pid.rollD.toFixed(3) }}</span>
+            <div class="input-group">
+              <input type="number" v-model.number="pid.rollD" step="1" class="pid-input" min="0" max="100" />
+            </div>
           </div>
           <div class="pid-item aux">
             <span class="pid-key">I_Max</span>
@@ -73,15 +89,21 @@
         <div class="pid-values">
           <div class="pid-item">
             <span class="pid-key p-key">P</span>
-            <span class="pid-val">{{ pid.pitchP.toFixed(3) }}</span>
+            <div class="input-group">
+              <input type="number" v-model.number="pid.pitchP" step="1" class="pid-input" min="0" max="100" />
+            </div>
           </div>
           <div class="pid-item">
             <span class="pid-key i-key">I</span>
-            <span class="pid-val">{{ pid.pitchI.toFixed(3) }}</span>
+            <div class="input-group">
+              <input type="number" v-model.number="pid.pitchI" step="1" class="pid-input" min="0" max="100" />
+            </div>
           </div>
           <div class="pid-item">
             <span class="pid-key d-key">D</span>
-            <span class="pid-val">{{ pid.pitchD.toFixed(3) }}</span>
+            <div class="input-group">
+              <input type="number" v-model.number="pid.pitchD" step="1" class="pid-input" min="0" max="100" />
+            </div>
           </div>
           <div class="pid-item aux">
             <span class="pid-key">I_Max</span>
@@ -104,15 +126,21 @@
         <div class="pid-values">
           <div class="pid-item">
             <span class="pid-key p-key">P</span>
-            <span class="pid-val">{{ pid.yawP.toFixed(3) }}</span>
+            <div class="input-group">
+              <input type="number" v-model.number="pid.yawP" step="1" class="pid-input" min="0" max="100" />
+            </div>
           </div>
           <div class="pid-item">
             <span class="pid-key i-key">I</span>
-            <span class="pid-val">{{ pid.yawI.toFixed(3) }}</span>
+            <div class="input-group">
+              <input type="number" v-model.number="pid.yawI" step="1" class="pid-input" min="0" max="100" />
+            </div>
           </div>
           <div class="pid-item">
             <span class="pid-key d-key">D</span>
-            <span class="pid-val">{{ pid.yawD.toFixed(3) }}</span>
+            <div class="input-group">
+              <input type="number" v-model.number="pid.yawD" step="1" class="pid-input" min="0" max="100" />
+            </div>
           </div>
           <div class="pid-item aux">
             <span class="pid-key">I_Max</span>
@@ -124,14 +152,15 @@
           </div>
         </div>
       </div>
-
+    
+        <!-- 底部状态栏 -->
+      <div class="stats-bar">
+        <span class="stat-item">已接收帧：<strong>{{ frameCount }}</strong></span>
+        <span class="stat-item">已发送请求：<strong>{{ txCount }}</strong></span>
+      </div>
     </div>
 
-    <!-- 底部状态栏 -->
-    <div class="stats-bar">
-      <span class="stat-item">已接收帧：<strong>{{ frameCount }}</strong></span>
-      <span class="stat-item">已发送请求：<strong>{{ txCount }}</strong></span>
-    </div>
+    
 
   </div>
 </template>
@@ -161,7 +190,7 @@ interface PidData {
   yawIMax: number; yawDCutfreq: number
 }
 
-const pid = ref<PidData>({
+let pid = ref<PidData>({
   rollP: 0, rollI: 0, rollD: 0, rollIMax: 0, rollDCutfreq: 0,
   pitchP: 0, pitchI: 0, pitchD: 0, pitchIMax: 0, pitchDCutfreq: 0,
   yawP: 0, yawI: 0, yawD: 0, yawIMax: 0, yawDCutfreq: 0,
@@ -191,6 +220,15 @@ function calcCrc(buf: Uint8Array, start: number, end: number, extra: number): nu
   let crc = 0xFFFF
   for (let i = start; i < end; i++) crc = crcAccumulate(buf[i]!, crc)
   return crcAccumulate(extra, crc)
+}
+
+// 调整参数值（用于 + - 按钮）
+function adjustValue(key: keyof PidData, delta: number) {
+  const current = pid.value[key]
+  if (typeof current === 'number') {
+    // 保留3位小数精度处理，避免浮点数误差
+    pid.value[key] = parseFloat((current + delta).toFixed(3))
+  }
 }
 
 // ── MAVLink v1 帧构建 ─────────────────────────────────────────
@@ -226,8 +264,6 @@ function startPolling() {
     // 构建帧
     const frame = buildQueryFrame(MSG_ID_PID)
     const frame_d = new Uint8Array([0xFE, 0x0B, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0x95, 0x14])
-    // 【新增】打印发送的数据
-    // console.log('[PidDebug TX]', Array.from(frame).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' '))
     console.log('发送查询帧:', frame_d)
     serial.send(frame_d)
     // await serial.send(buildQueryFrame(MSG_ID_PID))
@@ -246,15 +282,15 @@ function stopPolling() {
 function parsePid(payload: Uint8Array) {
   const dv = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
   pid.value = {
-    rollP:  dv.getFloat32(0,  true),
-    rollI:  dv.getFloat32(4,  true),
-    rollD:  dv.getFloat32(8,  true),
-    pitchP: dv.getFloat32(12, true),
-    pitchI: dv.getFloat32(16, true),
-    pitchD: dv.getFloat32(20, true),
+    rollP:  Math.round(dv.getFloat32(0,  true)),
+    rollI:  Math.round(dv.getFloat32(4,  true)),
+    rollD:  Math.round(dv.getFloat32(8,  true)),
+    pitchP: Math.round(dv.getFloat32(12, true)),
+    pitchI: Math.round(dv.getFloat32(16, true)),
+    pitchD: Math.round(dv.getFloat32(20, true)),
     yawP:   dv.getFloat32(24, true),
-    yawI:   dv.getFloat32(28, true),
-    yawD:   dv.getFloat32(32, true),
+    yawI:   Math.round(dv.getFloat32(28, true)),
+    yawD:   Math.round(dv.getFloat32(32, true)),
     rollIMax:      payload[36]!,
     rollDCutfreq:  payload[37]!,
     pitchIMax:     payload[38]!,
@@ -374,6 +410,15 @@ onUnmounted(() => { stopPolling(); getInstance().removeEventListener('data', han
   font-family: 'Consolas', monospace;
 }
 
+
+/* 未连接 */
+.not-connected {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: var(--spacing-2xl);
+  gap: var(--spacing-md); color: var(--text-disabled);
+}
+.not-connected-icon { font-size: 48px; opacity: 0.3; }
+
 /* ── 空状态提示 ──────────────────────────────────────────── */
 .empty-hint {
   flex: 1;
@@ -436,6 +481,20 @@ onUnmounted(() => { stopPolling(); getInstance().removeEventListener('data', han
   gap: var(--spacing-lg);
   flex-wrap: wrap;
 }
+
+.pid-input {
+  width: 60px;
+  padding: 4px 8px;
+  text-align: center;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface-100);
+  color: var(--text-primary);
+  font-family: 'Consolas', monospace;
+  font-size: var(--font-size-sm);
+  box-sizing: border-box;
+}
+
 
 .pid-item {
   display: flex;
