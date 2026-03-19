@@ -1,6 +1,6 @@
 <template>
     <!-- 已连接时显示飞控信息 -->
-    <template v-if="isConnected">
+    <!-- <template v-if="isConnected">
       <div class="fc-info-chip">
         <span class="fc-version">
           v{{ fcInfo.majorVersion }}.{{ fcInfo.minorVersion }}.{{ fcInfo.patchVersion }}
@@ -8,7 +8,7 @@
         <span class="fc-divider">|</span>
         <span class="fc-target">{{ fcInfo.targetName }}</span>
       </div>
-    </template>
+    </template> -->
 
   <div class="serial-header">
     <!-- 连接状态指示器（圆点 + 文本） -->

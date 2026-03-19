@@ -38,7 +38,29 @@ import Receiver from './components/receiver.vue';
       </div>
 
       <div class="nav-section">
-        <a 
+        <a
+          href="#"
+          @click.prevent="selectItem('pidDebug')"
+          :class="{ active: activeItem === 'pidDebug' }"
+          class="nav-item"
+        >
+          <span class="nav-label">PID 调试</span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <a
+          href="#"
+          @click.prevent="selectItem('gyroDebug')"
+          :class="{ active: activeItem === 'gyroDebug' }"
+          class="nav-item"
+        >
+          <span class="nav-label">调试陀螺仪</span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <a
           href="#"
           @click.prevent="selectItem('devSerial')"
           :class="{ active: activeItem === 'devSerial' }"
@@ -47,6 +69,7 @@ import Receiver from './components/receiver.vue';
           <span class="nav-label">开发调试</span>
         </a>
       </div>
+
     </nav>
 
     <div class="sidebar-footer">
