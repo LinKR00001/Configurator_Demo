@@ -12,46 +12,36 @@
       </div>
     </div>
 
-    <!-- 飞控信息面板 -->
-    <div class="panel">
-      <div class="panel-header">
-        <h2>飞控信息</h2>
-      </div>
-      <div class="info-grid">
-        <div class="info-item">
-          <span class="info-label">固件版本</span>
-          <span class="info-value">
-            {{ fcInfo.majorVersion }}.{{ fcInfo.minorVersion }}.{{ fcInfo.patchVersion }}
-          </span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">板子类型</span>
-          <span class="info-value">{{ fcInfo.targetName }}</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">板子 ID</span>
-          <span class="info-value">{{ fcInfo.targetId || '—' }}</span>
-        </div>
-      </div>
+    <!-- 未连接提示 -->
+    <div v-if="!isConnected" class="not-connected">
+      <span class="not-connected-icon">○</span>
+      <p>请先通过顶部串口面板连接飞控</p>
     </div>
 
-    <!-- 调试工具面板 -->
-    <div class="panel">
-      <div class="panel-header">
-        <h2>调试工具</h2>
-        <button @click="sendBytes" :disabled="!isConnected">发送测试字节</button>
-      </div>
-      <div v-if="receivedData" class="terminal">
-        <div class="terminal-header">
-          <span class="terminal-title">接收数据</span>
-          <button class="btn-secondary btn-small" @click="receivedData = ''">清除</button>
+    <template v-else>
+      <!-- 飞控信息面板 -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>飞控信息</h2>
         </div>
-        <pre class="terminal-body">{{ receivedData }}</pre>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">固件版本</span>
+            <span class="info-value">
+              {{ fcInfo.majorVersion }}.{{ fcInfo.minorVersion }}.{{ fcInfo.patchVersion }}
+            </span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">板子类型</span>
+            <span class="info-value">{{ fcInfo.targetName }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">板子 ID</span>
+            <span class="info-value">{{ fcInfo.targetId || '—' }}</span>
+          </div>
+        </div>
       </div>
-      <div v-else class="terminal terminal-empty">
-        <span>暂无数据，点击"发送测试字节"开始调试</span>
-      </div>
-    </div>
+    </template>
   </div>
 </template>
 
@@ -109,6 +99,15 @@ const sendBytes = async () => {
 </script>
 
 <style scoped>
+
+/* 未连接 */
+.not-connected {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: var(--spacing-2xl);
+  gap: var(--spacing-md); color: var(--text-disabled);
+}
+.not-connected-icon { font-size: 48px; opacity: 0.3; }
+
 .setting-container {
   padding: var(--spacing-2xl);
   max-width: 860px;

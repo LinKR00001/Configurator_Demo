@@ -3,10 +3,12 @@ import { ref, shallowRef  } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 import SerialPanel from '@/components/SerialPanel.vue'
 import { useConnection } from '@/composables/useConnection'
-import welcome from '@/components/welcome.vue'
-import receiver from '@/components/receiver.vue'
-import setting from '@/components/setting.vue'
+import welcome from '@/components/Welcome.vue'
+import receiver from '@/components/Receiver.vue'
+import setting from '@/components/Setting.vue'
 import DevelopModePanel from '@/components/DevelopModePanel.vue'
+import GyroDebug from '@/components/Gyro.vue'
+import PidDebug from '@/components/PidSetting.vue'
 
 /**
  * 简化页面导航 - 仅保留串口连接和 Mavlink 调试
@@ -18,7 +20,7 @@ import DevelopModePanel from '@/components/DevelopModePanel.vue'
  * 4. 用户点击断开连接 -> setDisconnected() 更新状态
  */
 
-type PageType = 'welcome' | 'setting' | 'receiver'| 'devSerial'
+type PageType = 'welcome' | 'setting' | 'receiver' | 'pidDebug' | 'devSerial' | 'gyroDebug'
 
 const activePage = ref<PageType>('welcome')
 const currentComponent = ref(shallowRef(welcome));
@@ -37,8 +39,14 @@ const handleSidebarSelect = (item: string) => {
     case 'receiver':
       currentComponent.value = receiver;
       break;
+    case 'pidDebug':
+      currentComponent.value = PidDebug;
+      break;
     case 'devSerial':
       currentComponent.value = DevelopModePanel;
+      break;
+    case 'gyroDebug':
+      currentComponent.value = GyroDebug;
       break;
     default:
       currentComponent.value = welcome;
