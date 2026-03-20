@@ -56,9 +56,6 @@ const serialManager = getInstance()
 // 读取全局共享的飞控信息（轮询由 SerialPanel 启动，此处只读）
 const { fcInfo } = useFCInfo()
 
-// 查询指令（仅用于手动发送）
-const QUERY_CMD = new Uint8Array([0xFE, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0xA8, 0xF2])
-
 const isConnected = ref(serialManager.getConnected())
 const receivedData = ref('')
 
@@ -89,13 +86,7 @@ onUnmounted(() => {
   serialManager.removeEventListener('data', handleData)
 })
 
-// 手动发送单次查询指令
-const sendBytes = async () => {
-  const ok = await serialManager.send(QUERY_CMD)
-  if (ok) {
-    receivedData.value += `[TX] ${toHex(QUERY_CMD)}\n`
-  }
-}
+
 </script>
 
 <style scoped>

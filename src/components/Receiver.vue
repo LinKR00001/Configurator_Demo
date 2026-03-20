@@ -226,23 +226,8 @@ function startBind() {
   const serial = getInstance()
   if (!serial.getConnected()) return
 
-  // 构建对频帧
-  const payload = new Uint8Array(11)
-  const view = new DataView(payload.buffer)
-  view.setFloat32(0, 0, true)
-  view.setFloat32(4, 0, true)
-  view.setUint16(8, MSG_ID_BIND, true)
-  view.setUint8(10, 0)
-
-  const frame = buildMavFrame(MSG_ID_COMMAND, payload, CRC_EXTRA_COMMAND)
-  serial.send(frame)
-  txCount.value++
-  updatedAt.value = timestamp()
 }
 
-// ── 定时器句柄 ───────────────────────────────────────────────
-let pollTimerId: ReturnType<typeof setInterval> | null = null
-let fpsTimerId:  ReturnType<typeof setInterval> | null = null
 
 // ── 字节缓冲区 ───────────────────────────────────────────────
 let rxBuf = new Uint8Array(512)
@@ -262,47 +247,6 @@ function calcCrc(buf: Uint8Array, start: number, end: number, extra: number): nu
   return crcAccumulate(extra, crc)
 }
 
-// ── MAVLink v1 帧构建 ─────────────────────────────────────────
-function buildMavFrame(msgid: number, payload: Uint8Array, crcExtra: number): Uint8Array {
-  const frame = new Uint8Array(payload.length + 8)
-  frame[0] = MAV_STX; frame[1] = payload.length
-  frame[2] = txSeq++ & 0xFF; frame[3] = 0; frame[4] = 0; frame[5] = msgid
-  frame.set(payload, 6)
-  const crc = calcCrc(frame, 1, 6 + payload.length, crcExtra)
-  frame[6 + payload.length] = crc & 0xFF
-  frame[7 + payload.length] = (crc >> 8) & 0xFF
-  return frame
-}
-
-function buildQueryFrame(requestMsgId: number): Uint8Array {
-  const payload = new Uint8Array(11)
-  const view = new DataView(payload.buffer)
-  view.setFloat32(0, 0, true); view.setFloat32(4, 0, true)
-  view.setUint16(8, requestMsgId, true); view.setUint8(10, 0)
-  return buildMavFrame(MSG_ID_COMMAND, payload, CRC_EXTRA_COMMAND)
-}
-
-// ── 轮询控制 ─────────────────────────────────────────────────
-function startPolling() {
-  if (isPolling.value) return
-  isPolling.value = true; fpsFrames = 0; frameRate.value = 0
-
-  pollTimerId = setInterval(async () => {
-    const serial = getInstance()
-    if (!serial.getConnected()) return
-    await serial.send(buildQueryFrame(MSG_ID_RC_CHANNELS))
-    txCount.value++
-  }, POLL_INTERVAL_MS)
-
-  fpsTimerId = setInterval(() => { frameRate.value = fpsFrames; fpsFrames = 0 }, 1000)
-}
-
-function stopPolling() {
-  isPolling.value = false
-  if (pollTimerId !== null) { clearInterval(pollTimerId); pollTimerId = null }
-  if (fpsTimerId  !== null) { clearInterval(fpsTimerId);  fpsTimerId  = null }
-  frameRate.value = 0
-}
 
 // ── MAVLink 帧解析 ────────────────────────────────────────────
 function readInt16LE(buf: Uint8Array, offset: number): number {
@@ -364,10 +308,8 @@ function timestamp() { return new Date().toLocaleTimeString('zh-CN', { hour12: f
 
 onMounted(() => {
   getInstance().addEventListener('data', handleData)
-  startPolling()
 })
 onUnmounted(() => {
-  stopPolling()
   getInstance().removeEventListener('data', handleData)
 })
 </script>
