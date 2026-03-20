@@ -62,6 +62,17 @@ import Receiver from './components/receiver.vue';
       <div class="nav-section">
         <a
           href="#"
+          @click.prevent="selectItem('rate')"
+          :class="{ active: activeItem === 'rate' }"
+          class="nav-item"
+        >
+          <span class="nav-label">RATE设置</span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <a
+          href="#"
           @click.prevent="selectItem('sensor')"
           :class="{ active: activeItem === 'sensor' }"
           class="nav-item"

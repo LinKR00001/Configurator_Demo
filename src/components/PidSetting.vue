@@ -167,11 +167,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useConnection } from '@/composables/useConnection'
-import { useGlobalSerialManager } from '@/composables/useGlobalSerialManager'
+import { useSerial } from '@/composables/useSerial'
 
-const { connectionState } = useConnection()
-const { getInstance } = useGlobalSerialManager()
+const { getInstance, connectionState } = useSerial()
 
 // ── MAVLink 协议常量 ──────────────────────────────────────────
 const MAV_STX           = 0xFE
@@ -260,7 +258,7 @@ function startPolling() {
   isPolling.value = true; fpsFrames = 0; frameRate.value = 0
 
     const serial = getInstance()
-    if (!serial.isConnected) return
+    if (!serial.getConnected()) return
     // 构建帧
     const frame = buildQueryFrame(MSG_ID_PID)
     const frame_d = new Uint8Array([0xFE, 0x0B, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0x95, 0x14])

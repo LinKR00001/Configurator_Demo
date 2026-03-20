@@ -248,11 +248,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useConnection } from '@/composables/useConnection'
-import { useGlobalSerialManager } from '@/composables/useGlobalSerialManager'
+import { useSerial } from '@/composables/useSerial'
 
-const { connectionState } = useConnection()
-const { getInstance } = useGlobalSerialManager()
+const { getInstance, connectionState } = useSerial()
 
 // ── MAVLink 协议常量 ─────────────────────────────────────────
 const MAV_STX = 0xFE
@@ -393,7 +391,7 @@ function startPolling() {
 
   pollTimerId = setInterval(async () => {
     const serial = getInstance()
-    if (!serial.isConnected) return
+    if (!serial.getConnected()) return
     await serial.send(buildQueryFrame(MSG_ID_IMU))
     txCount.value++
   }, POLL_INTERVAL_MS)

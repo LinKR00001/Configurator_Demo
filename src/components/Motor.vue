@@ -113,11 +113,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import { useConnection } from '@/composables/useConnection'
-import { useGlobalSerialManager } from '@/composables/useGlobalSerialManager'
+import { useSerial } from '@/composables/useSerial'
 
-const { connectionState } = useConnection()
-const { getInstance } = useGlobalSerialManager()
+const { getInstance, connectionState } = useSerial()
 
 // ── 状态数据 ─────────────────────────────────────────────────
 const safetyEnabled = ref(false)
@@ -140,6 +138,7 @@ let sendTimeout: ReturnType<typeof setTimeout> | null = null
 
 function handleMotorChange(index: number) {
   const m = motors[index]
+  if (!m) return
   if (m.value < 1000) m.value = 1000
   if (m.value > 2000) m.value = 2000
 
@@ -153,17 +152,27 @@ function handleMotorChange(index: number) {
 
 function sendMotorCommands() {
   const serial = getInstance()
-  if (!serial.isConnected) return
+  if (!serial.getConnected()) return
 
-  const writer = new MspPayloadWriter(16)
-  motors.forEach(m => {
-    writer.writeUint16(m.value)
+  // 构建 MSP 请求帧
+  const payload = new Uint8Array(16)
+  const view = new DataView(payload.buffer)
+  motors.forEach((m, i) => {
+    view.setUint16(i * 2, m.value, true)
   })
-  for (let i = 0; i < 4; i++) {
-    writer.writeUint16(0)
-  }
 
-  const frame = MspEncoder.encodeRequest(MSP_SET_MOTOR, writer.getPayload())
+  // MSP 编码
+  const header = new Uint8Array([0x24, 0x4D, 0x3C, 16, MSP_SET_MOTOR])
+  const frame = new Uint8Array(header.length + payload.length + 1)
+  frame.set(header, 0)
+  frame.set(payload, header.length)
+
+  // 计算 CRC
+  let crc = 0
+  for (let i = 3; i < header.length; i++) crc ^= header[i]!
+  for (let i = 0; i < payload.length; i++) crc ^= payload[i]!
+  frame[header.length + payload.length] = crc
+
   serial.send(frame)
 
   txCount.value++

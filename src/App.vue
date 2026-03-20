@@ -2,32 +2,35 @@
 import { ref, shallowRef  } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 import SerialPanel from '@/components/SerialPanel.vue'
-import { useConnection } from '@/composables/useConnection'
+import { useSerial } from '@/composables/useSerial'
 import welcome from '@/components/Welcome.vue'
 import receiver from '@/components/Receiver.vue'
-import Message from '@/components/Message.vue'  
+import Message from '@/components/Message.vue'
 import DevelopModePanel from '@/components/DevelopModePanel.vue'
 import Gyro from '@/components/Gyro.vue'
 import Pid from '@/components/PidSetting.vue'
 import Sensor from '@/components/Sensor.vue'
 import MotorTest from '@/components/Motor.vue'
 import Firmware from '@/components/Firmware.vue'
+import Rate from '@/components/RateSetting.vue'
+
 /**
  * 简化页面导航 - 仅保留串口连接和 Mavlink 调试
- * 
+ *
  * 流程:
  * 1. 初始加载显示 Welcome 页面
  * 2. 用户点击 SerialPanel 的连接按钮 -> SerialManager.connect()
  * 3. 连接成功 -> 在 DebugPanel 显示 Mavlink 消息
- * 4. 用户点击断开连接 -> setDisconnected() 更新状态
+ * 4. 用户点击断开连接 -> 连接状态由 useSerial 自动管理
  */
 
-type PageType = 'welcome' | 'message' | 'receiver' | 'pidDebug' | 'devSerial' | 'gyroDebug'
+type PageType = 'welcome' | 'message' | 'receiver' | 'pid' | 'devSerial' | 'gyro' | 'rate' | 'sensor' | 'motorTest' | 'firmware'
 
 const activePage = ref<PageType>('welcome')
 const currentComponent = ref(shallowRef(welcome));
 
-const { setConnected, setDisconnected } = useConnection()
+// 获取串口实例（状态由 useSerial 内部自动管理）
+useSerial()
 
 const handleSidebarSelect = (item: string) => {
   activePage.value = item as PageType
@@ -46,6 +49,9 @@ const handleSidebarSelect = (item: string) => {
       break;
     case 'pid':
       currentComponent.value = Pid;
+      break;
+    case 'rate':
+      currentComponent.value = Rate;
       break;
     case 'sensor':
       currentComponent.value = Sensor;
@@ -68,8 +74,8 @@ const handleSidebarSelect = (item: string) => {
 /**
  * 串口连接成功时的处理
  */
-const handleSerialConnected = (port: string) => {
-  setConnected(port)
+const handleSerialConnected = (_port: string) => {
+  // 连接状态已由 useSerial 内部管理，这里只需切换页面
   activePage.value = 'message'
   currentComponent.value = Message;
 }
@@ -78,7 +84,7 @@ const handleSerialConnected = (port: string) => {
  * 串口断开连接时的处理
  */
 const handleSerialDisconnected = () => {
-  setDisconnected()
+  // 连接状态已由 useSerial 内部管理，无需额外操作
 }
 
 /**

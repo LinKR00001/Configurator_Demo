@@ -27,13 +27,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useConnection } from '@/composables/useConnection'
-import { useGlobalSerialManager } from '@/composables/useGlobalSerialManager'
+import { useSerial } from '@/composables/useSerial'
 
-const { connectionState } = useConnection()
-const { getInstance } = useGlobalSerialManager()
-
-
+const { getInstance, connectionState } = useSerial()
 
 // ── 定时器句柄 ───────────────────────────────────────────────
 let pollTimerId: ReturnType<typeof setInterval> | null = null

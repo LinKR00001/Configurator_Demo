@@ -42,9 +42,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { DEFAULT_BAUD_RATES, DEFAULT_OPTIONS } from '@/utils/SerialManager'
-import { useGlobalSerialManager } from '@/composables/useGlobalSerialManager'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { useSerial, DEFAULT_BAUD_RATES } from '@/composables/useSerial'
 import { useFCInfo } from '@/composables/useFCInfo'
 
 const emit = defineEmits<{
@@ -53,16 +52,17 @@ const emit = defineEmits<{
   error: [error: string]
 }>()
 
-const { getInstance } = useGlobalSerialManager()
+const { getInstance, connectionState } = useSerial()
 const serialManager = getInstance()
 
-const { fcInfo, init: initFCInfo } = useFCInfo()
+const { init: initFCInfo } = useFCInfo()
 
-const isConnected = ref(false)
-const selectedBaudRate = ref(DEFAULT_OPTIONS.baudRate || 115200)
-const baudRates = ref(DEFAULT_BAUD_RATES)
+const selectedBaudRate = ref(115200)
+const baudRates = DEFAULT_BAUD_RATES
 const errorMessage = ref('')
-const connectedPort = ref('') // 可保留用于事件
+
+// 从全局状态获取连接状态
+const isConnected = computed(() => connectionState.value.isConnected)
 
 const toggleConnection = async () => {
   errorMessage.value = ''
@@ -78,14 +78,10 @@ const toggleConnection = async () => {
 }
 
 const handleConnected = () => {
-  isConnected.value = true
-  connectedPort.value = 'COM/ttyUSB' // 实际端口可从事件中获取
-  emit('connected', connectedPort.value)
+  emit('connected', connectionState.value.port || 'Serial Port')
 }
 
 const handleDisconnected = () => {
-  isConnected.value = false
-  connectedPort.value = ''
   emit('disconnected')
 }
 
@@ -99,12 +95,13 @@ onMounted(() => {
   serialManager.addEventListener('connected', handleConnected)
   serialManager.addEventListener('disconnected', handleDisconnected)
   serialManager.addEventListener('error', handleError)
-  // 启动全局飞控信息轮询（仅首次调用时注册，幂等）
   initFCInfo()
 })
 
 onUnmounted(async () => {
-  await serialManager.cleanup()
+  serialManager.removeEventListener('connected', handleConnected)
+  serialManager.removeEventListener('disconnected', handleDisconnected)
+  serialManager.removeEventListener('error', handleError)
 })
 </script>
 

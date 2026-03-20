@@ -47,10 +47,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useGlobalSerialManager } from '@/composables/useGlobalSerialManager'
+import { useSerial } from '@/composables/useSerial'
 import { useFCInfo } from '@/composables/useFCInfo'
 
-const { getInstance } = useGlobalSerialManager()
+const { getInstance } = useSerial()
 const serialManager = getInstance()
 
 // 读取全局共享的飞控信息（轮询由 SerialPanel 启动，此处只读）
@@ -59,7 +59,7 @@ const { fcInfo } = useFCInfo()
 // 查询指令（仅用于手动发送）
 const QUERY_CMD = new Uint8Array([0xFE, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0xA8, 0xF2])
 
-const isConnected = ref(serialManager.isConnected)
+const isConnected = ref(serialManager.getConnected())
 const receivedData = ref('')
 
 function toHex(bytes: Uint8Array): string {
@@ -77,7 +77,7 @@ const handleConnected = () => { isConnected.value = true }
 const handleDisconnected = () => { isConnected.value = false }
 
 onMounted(() => {
-  isConnected.value = serialManager.isConnected
+  isConnected.value = serialManager.getConnected()
   serialManager.addEventListener('connected', handleConnected)
   serialManager.addEventListener('disconnected', handleDisconnected)
   serialManager.addEventListener('data', handleData)
