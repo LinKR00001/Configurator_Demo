@@ -105,7 +105,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onUnmounted } from 'vue'
-import { SerialManager } from '@/utils/SerialManager'
+import { SerialManager } from '@/composables/useSerial'
 
 // 私有串口实例，不使用全局实例，避免触发 useFCInfo 定时轮询
 const BAUD_RATE = 420000

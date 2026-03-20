@@ -3,8 +3,8 @@
     <!-- 页面标题 -->
     <div class="page-header">
       <div class="page-header-left">
-        <h1>调试陀螺仪</h1>
-        <p class="page-subtitle">实时解析 MAVLink IMU 数据（MSG_ID=4）</p>
+        <h1>陀螺仪</h1>
+        <p class="page-subtitle">实时显示IMU相关数据</p>
       </div>
       <div class="header-right">
         <div :class="['status-indicator', connectionState.isConnected ? 'connected' : 'disconnected']">
@@ -248,11 +248,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useConnection } from '@/composables/useConnection'
-import { useGlobalSerialManager } from '@/composables/useGlobalSerialManager'
+import { useSerial } from '@/composables/useSerial'
 
-const { connectionState } = useConnection()
-const { getInstance } = useGlobalSerialManager()
+const { getInstance, connectionState } = useSerial()
 
 // ── MAVLink 协议常量 ─────────────────────────────────────────
 const MAV_STX = 0xFE
@@ -393,7 +391,7 @@ function startPolling() {
 
   pollTimerId = setInterval(async () => {
     const serial = getInstance()
-    if (!serial.isConnected) return
+    if (!serial.getConnected()) return
     await serial.send(buildQueryFrame(MSG_ID_IMU))
     txCount.value++
   }, POLL_INTERVAL_MS)

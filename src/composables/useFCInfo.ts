@@ -5,7 +5,7 @@
  */
 
 import { ref, readonly } from 'vue'
-import { useGlobalSerialManager } from './useGlobalSerialManager'
+import { useSerial } from './useSerial'
 
 // 查询飞控版本信息的指令
 const QUERY_CMD = new Uint8Array([0xFE, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0xA8, 0xF2])
@@ -43,7 +43,7 @@ function parseVerMsg(bytes: Uint8Array) {
 }
 
 async function sendQueryCmd() {
-  const { getInstance } = useGlobalSerialManager()
+  const { getInstance } = useSerial()
   await getInstance().send(QUERY_CMD)
 }
 
@@ -70,7 +70,7 @@ export function useFCInfo() {
     if (initialized) return
     initialized = true
 
-    const { getInstance } = useGlobalSerialManager()
+    const { getInstance } = useSerial()
     const serialManager = getInstance()
 
     serialManager.addEventListener('connected', () => startPolling())
@@ -80,7 +80,7 @@ export function useFCInfo() {
     })
 
     // 若初始化时串口已处于连接状态，立即开始轮询
-    if (serialManager.isConnected) {
+    if (serialManager.getConnected()) {
       startPolling()
     }
   }
