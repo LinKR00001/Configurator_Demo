@@ -135,11 +135,7 @@ const { getInstance, connectionState } = useSerial()
 const MAV_STX            = 0xFE
 const MSG_ID_RC_CHANNELS = 7
 const CRC_EXTRA_RC       = 45
-const MSG_ID_COMMAND     = 8
-const CRC_EXTRA_COMMAND  = 58
-const MSG_ID_BIND        = 5
 
-const POLL_INTERVAL_MS = 100  // 10 Hz
 
 // RC 标准值域（PWM μs）
 const RC_MIN = 1000
@@ -232,7 +228,6 @@ function startBind() {
 // ── 字节缓冲区 ───────────────────────────────────────────────
 let rxBuf = new Uint8Array(512)
 let rxLen = 0
-let txSeq = 0
 
 // ── MAVLink X25 CRC ─────────────────────────────────────────
 function crcAccumulate(byte: number, crc: number): number {
@@ -254,6 +249,7 @@ function readInt16LE(buf: Uint8Array, offset: number): number {
 }
 
 function parseRcChannels(payload: Uint8Array) {
+  
   const flashTimers_local: ReturnType<typeof setTimeout>[] = []
   for (let i = 0; i < 12; i++) {
     const val = readInt16LE(payload, i * 2)

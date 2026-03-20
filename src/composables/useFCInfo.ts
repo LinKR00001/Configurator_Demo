@@ -10,6 +10,9 @@ import { useSerial } from './useSerial'
 // 查询飞控版本信息的指令
 const QUERY_CMD = new Uint8Array([0xFE, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0xA8, 0xF2])
 const POLL_INTERVAL_MS = 2000
+const MSG_ID_RC_CHANNELS = 7
+
+
 
 const TARGET_NAME_MAP: Record<number, string> = {
   10: 'Aquila20',
@@ -23,6 +26,7 @@ const fcInfo = ref({
   targetId: 0,
   targetName: '未知',
 })
+
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let initialized = false
@@ -39,6 +43,9 @@ function parseVerMsg(bytes: Uint8Array) {
     const id = bytes[8]!
     fcInfo.value.targetId = id
     fcInfo.value.targetName = TARGET_NAME_MAP[id] || `未知板型(${id})`
+  }
+  if (bytes.length >= 46 && bytes[0] === 0xFE && bytes[5] === MSG_ID_RC_CHANNELS) {
+    console.log('[RC Channels]')
   }
 }
 
