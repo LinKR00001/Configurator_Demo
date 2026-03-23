@@ -1,5 +1,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
+import { MSP_CMD, useMsp } from '@/ts/information/msp'
+import { ENABLE_CUSTOM_PROTOCOL, ENABLE_MSP_PROTOCOL } from '@/ts/information/protocolFlags'
 
 const MAV_STX = 0xFE
 const MSG_ID_RC_CHANNELS = 7
@@ -32,7 +34,7 @@ const channels = ref<Channel[]>(
 const mainChannels = computed(() => channels.value.slice(0, 4))
 const auxChannels = computed(() => channels.value.slice(4, 12))
 
-const rcCount = ref(0)
+const rcCount = ref(12)
 const rssi = ref(255)
 const frameCount = ref(0)
 const txCount = ref(0)
@@ -41,15 +43,14 @@ const isPolling = ref(false)
 const frameRate = ref(0)
 let fpsFrames = 0
 
+let pollTimer: ReturnType<typeof setInterval> | null = null
+let fpsTimer: ReturnType<typeof setInterval> | null = null
+let unbindRcMessage: (() => void) | null = null
 let rxBuf = new Uint8Array(512)
 let rxLen = 0
 
 function timestamp() {
   return new Date().toLocaleTimeString('zh-CN', { hour12: false })
-}
-
-function readInt16LE(buf: Uint8Array, offset: number): number {
-  return new DataView(buf.buffer, buf.byteOffset + offset, 2).getInt16(0, true)
 }
 
 function crcAccumulate(byte: number, crc: number): number {
@@ -64,10 +65,12 @@ function calcCrc(buf: Uint8Array, start: number, end: number, extra: number): nu
   return crcAccumulate(extra, crc)
 }
 
-function parseRcChannels(payload: Uint8Array) {
+function parseRcPayload(payload: Uint8Array) {
+  if (payload.length < 24) return
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
   const flashTimersLocal: ReturnType<typeof setTimeout>[] = []
   for (let i = 0; i < 12; i++) {
-    const val = readInt16LE(payload, i * 2)
+    const val = view.getUint16(i * 2, true)
     const ch = channels.value[i]!
     const changed = ch.value !== val
     ch.value = val
@@ -76,14 +79,20 @@ function parseRcChannels(payload: Uint8Array) {
       flashTimersLocal.push(setTimeout(() => { ch.active = false }, 300))
     }
   }
-  rcCount.value = payload[24]!
-  rssi.value = payload[25]!
+  rcCount.value = 12
   frameCount.value++
   fpsFrames++
   updatedAt.value = timestamp()
 }
 
-function processBuffer() {
+function parseCustomRcPayload(payload: Uint8Array) {
+  if (payload.length < 26) return
+  parseRcPayload(payload.subarray(0, 24))
+  rcCount.value = payload[24]!
+  rssi.value = payload[25]!
+}
+
+function processCustomBuffer() {
   let i = 0
   while (i < rxLen) {
     if (rxBuf[i] !== MAV_STX) { i++; continue }
@@ -96,7 +105,7 @@ function processBuffer() {
     if (rxBuf[i + 5] === MSG_ID_RC_CHANNELS) {
       const crc = calcCrc(rxBuf, i + 1, i + 6 + pLen, CRC_EXTRA_RC)
       if (rxBuf[i + 6 + pLen] === (crc & 0xFF) && rxBuf[i + 7 + pLen] === ((crc >> 8) & 0xFF)) {
-        parseRcChannels(rxBuf.slice(i + 6, i + 6 + pLen))
+        parseCustomRcPayload(rxBuf.slice(i + 6, i + 6 + pLen))
       }
     }
     i += fLen
@@ -110,7 +119,7 @@ function processBuffer() {
   }
 }
 
-function handleData(event: any) {
+function handleCustomData(event: any) {
   const chunk: Uint8Array = event.data
   if (!chunk?.length) return
   if (rxLen + chunk.length > rxBuf.length) {
@@ -120,18 +129,75 @@ function handleData(event: any) {
   }
   rxBuf.set(chunk, rxLen)
   rxLen += chunk.length
-  processBuffer()
+  processCustomBuffer()
+}
+
+async function requestRc() {
+  if (!ENABLE_MSP_PROTOCOL) return
+  const { send } = useMsp()
+  const ok = await send(MSP_CMD.RC)
+  if (ok) txCount.value++
+}
+
+function startPolling() {
+  if (pollTimer) return
+  isPolling.value = true
+  requestRc()
+  pollTimer = setInterval(requestRc, 50)
+  if (!fpsTimer) {
+    fpsTimer = setInterval(() => {
+      frameRate.value = fpsFrames
+      fpsFrames = 0
+    }, 1000)
+  }
+}
+
+function stopPolling() {
+  isPolling.value = false
+  frameRate.value = 0
+  fpsFrames = 0
+  rxLen = 0
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+  if (fpsTimer) {
+    clearInterval(fpsTimer)
+    fpsTimer = null
+  }
 }
 
 export function useReceiverInfo() {
   const { getInstance } = useSerial()
+  const { onMessage } = useMsp()
+  const serial = getInstance()
+
+  const handleConnected = () => startPolling()
+  const handleDisconnected = () => stopPolling()
 
   onMounted(() => {
-    getInstance().addEventListener('data', handleData)
+    unbindRcMessage = onMessage(MSP_CMD.RC, (frame) => {
+      if (!ENABLE_MSP_PROTOCOL) return
+      if (frame.direction !== '>') return
+      parseRcPayload(frame.payload)
+    })
+    if (ENABLE_CUSTOM_PROTOCOL) {
+      serial.addEventListener('data', handleCustomData)
+    }
+    serial.addEventListener('connected', handleConnected)
+    serial.addEventListener('disconnected', handleDisconnected)
+    if (serial.getConnected()) startPolling()
   })
 
   onUnmounted(() => {
-    getInstance().removeEventListener('data', handleData)
+    unbindRcMessage?.()
+    unbindRcMessage = null
+    if (ENABLE_CUSTOM_PROTOCOL) {
+      serial.removeEventListener('data', handleCustomData)
+    }
+    serial.removeEventListener('connected', handleConnected)
+    serial.removeEventListener('disconnected', handleDisconnected)
+    stopPolling()
   })
 
   return {

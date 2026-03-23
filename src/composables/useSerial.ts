@@ -27,6 +27,25 @@ export interface ConnectionState {
   connectedAt: number | null
 }
 
+/**
+ * 将 ReadableStreamDefaultReader 封装为可 for-await-of 的异步迭代器。
+ * 通过 shouldContinue 让循环在 disconnect/断连时可及时退出。
+ */
+async function* streamAsyncIterable(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  shouldContinue: () => boolean,
+  onDone?: () => void
+): AsyncGenerator<Uint8Array> {
+  while (shouldContinue()) {
+    const { done, value } = await reader.read()
+    if (done) {
+      onDone?.()
+      break
+    }
+    if (value) yield value
+  }
+}
+
 // Web Serial API 类型定义
 interface SerialPort {
   readable: ReadableStream<Uint8Array> | null
@@ -243,6 +262,7 @@ export class SerialManager {
     }
 
     this.isReading = true
+
     Promise.resolve().then(() => this.readLoop())
   }
 
@@ -250,22 +270,24 @@ export class SerialManager {
    * 读取循环
    */
   private async readLoop(): Promise<void> {
+    console.log('开始读取循环')
     try {
       const reader = this.port!.readable!.getReader()
       this.reader = reader
 
-      while (this.isReading && this.isConnected) {
-        const { done, value } = await reader.read()
+      let didDone = false
+      for await (const value of streamAsyncIterable(
+        reader,
+        () => this.isReading && this.isConnected,
+        () => { didDone = true }
+      )) {
+        this.handleReceivedData(value)
+      }
 
-        if (done) {
-          console.log('读取流已关闭，设备可能已断开')
-          this.handleDeviceDisconnect('读取流已关闭')
-          break
-        }
-
-        if (value) {
-          this.handleReceivedData(value)
-        }
+      // 只有当 reader.read() 返回 done（读取流关闭）时才触发设备断连
+      if (didDone && this.isConnected) {
+        console.log('读取流已关闭，设备可能已断开')
+        this.handleDeviceDisconnect('读取流已关闭')
       }
     } catch (error) {
       if (this.isReading) {

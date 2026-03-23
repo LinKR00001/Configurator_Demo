@@ -54,21 +54,9 @@ const { getInstance } = useSerial()
 const serialManager = getInstance()
 
 // 读取全局共享的飞控信息（轮询由 SerialPanel 启动，此处只读）
-const { fcInfo } = useFCInfo()
+const { fcInfo, requestMspFcVersionOnce } = useFCInfo()
 
 const isConnected = ref(serialManager.getConnected())
-const receivedData = ref('')
-
-function toHex(bytes: Uint8Array): string {
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ')
-}
-
-// 仅用于在终端显示 RX 数据，解析由 useFCInfo 负责
-const handleData = (event: any) => {
-  const data: Uint8Array = event.data
-  if (!data) return
-  receivedData.value += `[RX] ${toHex(data)}\n`
-}
 
 const handleConnected = () => { isConnected.value = true }
 const handleDisconnected = () => { isConnected.value = false }
@@ -77,13 +65,14 @@ onMounted(() => {
   isConnected.value = serialManager.getConnected()
   serialManager.addEventListener('connected', handleConnected)
   serialManager.addEventListener('disconnected', handleDisconnected)
-  serialManager.addEventListener('data', handleData)
+  if (isConnected.value) {
+    requestMspFcVersionOnce()
+  }
 })
 
 onUnmounted(() => {
   serialManager.removeEventListener('connected', handleConnected)
   serialManager.removeEventListener('disconnected', handleDisconnected)
-  serialManager.removeEventListener('data', handleData)
 })
 
 
