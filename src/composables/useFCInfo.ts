@@ -44,9 +44,6 @@ function parseVerMsg(bytes: Uint8Array) {
     fcInfo.value.targetId = id
     fcInfo.value.targetName = TARGET_NAME_MAP[id] || `未知板型(${id})`
   }
-  if (bytes.length >= 46 && bytes[0] === 0xFE && bytes[5] === MSG_ID_RC_CHANNELS) {
-    console.log('[RC Channels]')
-  }
 }
 
 async function sendQueryCmd() {
