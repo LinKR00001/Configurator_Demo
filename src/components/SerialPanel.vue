@@ -31,7 +31,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useSerial, DEFAULT_BAUD_RATES } from '@/composables/useSerial'
-import { useFCInfo } from '@/composables/useFCInfo'
+import { useFCInfo } from '@/ts/information/fcInfo'
 
 const emit = defineEmits<{
   connected: [port: string]

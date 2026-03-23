@@ -128,7 +128,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useSerial } from '@/composables/useSerial'
-import { useReceiverInfo } from '@/composables/receiverInfo'
+import { useReceiverInfo } from '@/ts/information/receiverInfo'
 
 const { getInstance, connectionState } = useSerial()
 const {

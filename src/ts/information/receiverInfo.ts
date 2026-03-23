@@ -1,5 +1,5 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useSerial } from './useSerial'
+import { useSerial } from '@/composables/useSerial'
 
 const MAV_STX = 0xFE
 const MSG_ID_RC_CHANNELS = 7

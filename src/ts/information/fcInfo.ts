@@ -5,7 +5,7 @@
  */
 
 import { ref, readonly } from 'vue'
-import { useSerial } from './useSerial'
+import { useSerial } from '@/composables/useSerial'
 
 // 查询飞控版本信息的指令
 const QUERY_CMD = new Uint8Array([0xFE, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0xA8, 0xF2])

@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
-import { useFCInfo } from '@/composables/useFCInfo'
+import { useFCInfo } from '@/ts/information/fcInfo'
 
 const { getInstance } = useSerial()
 const serialManager = getInstance()
