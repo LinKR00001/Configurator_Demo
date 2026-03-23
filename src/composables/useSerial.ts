@@ -76,9 +76,7 @@ declare global {
 
 // ==================== Constants ====================
 export const DEFAULT_BAUD_RATES = [
-  9600, 19200, 38400, 57600, 115200, 230400,
-  250000, 400000, 460800, 500000, 921600,
-  1000000, 1500000, 2000000, 2470000
+  9600, 19200, 38400, 57600, 115200
 ]
 
 export const DEFAULT_OPTIONS: SerialPortOptions = {
