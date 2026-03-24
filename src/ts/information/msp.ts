@@ -34,6 +34,7 @@ const MSP = {
 export const MSP_CMD = {
   FC_VERSION: 3,
   NAME: 10,
+  RAW_IMU: 102,
   RC: 105,
   SET_MOTOR: 214,
 } as const
@@ -46,9 +47,27 @@ export interface MspFrame {
   payload: Uint8Array
 }
 
+export interface MspRcFrame {
+  channels: number[]
+  rawCount: number
+}
+
+export interface MspImuFrame {
+  accX: number
+  accY: number
+  accZ: number
+  gyroX: number
+  gyroY: number
+  gyroZ: number
+}
+
 type MspHandler = (frame: MspFrame) => void
+type MspRcHandler = (rc: MspRcFrame) => void
+type MspImuHandler = (imu: MspImuFrame) => void
 
 const listenersByCmd = new Map<number, Set<MspHandler>>()
+const rcListeners = new Set<MspRcHandler>()
+const imuListeners = new Set<MspImuHandler>()
 
 let initialized = false
 let rxBuf = new Uint8Array(512)
@@ -88,8 +107,9 @@ function toHex(bytes: Uint8Array): string {
 
 function dispatchFrame(frame: MspFrame) {
   if (ENABLE_MSP_PROTOCOL && ENABLE_MSP_RX_FRAME_LOG) {
+    const now = new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })
     console.log(
-      `[MSP RX] dir=${frame.direction} cmd=${frame.command} len=${frame.payload.length} payload=${toHex(frame.payload)}`
+      `[MSP RX ${now}] dir=${frame.direction} cmd=${frame.command} len=${frame.payload.length} payload=${toHex(frame.payload)}`
     )
   }
 
@@ -97,6 +117,59 @@ function dispatchFrame(frame: MspFrame) {
   if (all) all.forEach((handler) => handler(frame))
   const byCmd = listenersByCmd.get(frame.command)
   if (byCmd) byCmd.forEach((handler) => handler(frame))
+
+  if (frame.direction === '>' && frame.command === MSP_CMD.RC) {
+    const rc = parseRcPayload(frame.payload)
+    if (rc) {
+      rcListeners.forEach((handler) => handler(rc))
+    }
+  }
+
+  if (frame.direction === '>' && frame.command === MSP_CMD.RAW_IMU) {
+    const imu = parseImuPayload(frame.payload)
+    if (imu) {
+      imuListeners.forEach((handler) => handler(imu))
+    }
+  }
+}
+
+function parseImuPayload(payload: Uint8Array): MspImuFrame | null {
+  if (payload.length < 12) return null
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
+  return {
+    accX:  view.getInt16(0,  true),
+    accY:  view.getInt16(2,  true),
+    accZ:  view.getInt16(4,  true),
+    gyroX: view.getInt16(6,  true),
+    gyroY: view.getInt16(8,  true),
+    gyroZ: view.getInt16(10, true),
+  }
+}
+
+function parseRcPayload(payload: Uint8Array): MspRcFrame | null {
+  const count = Math.floor(payload.length / 2)
+  if (count < 4) return null
+
+  const raw = new Array<number>(count)
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
+  for (let i = 0; i < count; i++) {
+    raw[i] = view.getUint16(i * 2, true)
+  }
+
+  // FC 侧 MSP_RC 顺序：roll, pitch, throttle, yaw, aux1...
+  // UI 侧主通道使用：roll, pitch, yaw, throttle
+  const channels = [
+    raw[0]!,
+    raw[1]!,
+    raw[3]!,
+    raw[2]!,
+    ...raw.slice(4),
+  ]
+
+  return {
+    channels,
+    rawCount: count,
+  }
 }
 
 function processBuffer() {
@@ -146,10 +219,7 @@ function handleSerialData(event: any) {
   const chunk: Uint8Array | undefined = event?.data
   if (!chunk?.length) return
 
-  console.log('收到一包数据包', toHex(chunk))
-
-  // 先把 chunk 喂给（FE F3 F4）状态机调试器
-  MSP.read(chunk)
+  // MSP.read(chunk)  //这个估计是不需要的
 
   // 再把 chunk 喂给（$ M <）MSP v1 解析器，方便你同时观察两种协议（若设备确实发的是该协议）
   ensureCapacity(rxLen + chunk.length)
@@ -186,12 +256,31 @@ export function useMsp() {
     }
   }
 
+  function onRcMessage(handler: MspRcHandler): () => void {
+    rcListeners.add(handler)
+    return () => {
+      rcListeners.delete(handler)
+    }
+  }
+
+  function onImuMessage(handler: MspImuHandler): () => void {
+    imuListeners.add(handler)
+    return () => {
+      imuListeners.delete(handler)
+    }
+  }
+
   async function send(command: number, payload: Uint8Array = new Uint8Array(0)): Promise<boolean> {
-    return serial.send(encodeMspV1Frame(command, payload))
+    const frame = encodeMspV1Frame(command, payload)
+    const now = new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })
+    console.log(`[MSP TX ${now}] cmd=${command} len=${payload.length} frame=${toHex(frame)}`)
+    return serial.send(frame)
   }
 
   return {
     onMessage,
+    onRcMessage,
+    onImuMessage,
     send,
   }
 }

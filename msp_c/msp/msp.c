@@ -75,6 +75,14 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
             sbufWriteU32(dst, armingDisableFlags);
             sbufWriteU8(dst, 0); // accCalibAxisFlags
             break;
+        case MSP_RAW_IMU: 
+            sbufWriteU16(dst, lrintf(sensorData.acc.x));
+            sbufWriteU16(dst, lrintf(sensorData.acc.y));
+            sbufWriteU16(dst, lrintf(sensorData.acc.z));
+            sbufWriteU16(dst, sensorData.gyro.x);
+            sbufWriteU16(dst, sensorData.gyro.y);
+            sbufWriteU16(dst, sensorData.gyro.z);
+            break
         case MSP_RC:
             sbufWriteU16(dst, rcData.roll);
             sbufWriteU16(dst, rcData.pitch);

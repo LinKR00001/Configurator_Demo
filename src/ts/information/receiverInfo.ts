@@ -13,6 +13,7 @@ const CHANNEL_NAMES = [
   'Roll', 'Pitch', 'Yaw', 'Throttle',
   'AUX1', 'AUX2', 'AUX3', 'AUX4',
   'AUX5', 'AUX6', 'AUX7', 'AUX8',
+  'AUX9', 'AUX10', 'AUX11', 'AUX12',
 ]
 
 interface Channel {
@@ -23,7 +24,7 @@ interface Channel {
 }
 
 const channels = ref<Channel[]>(
-  Array.from({ length: 12 }, (_, i) => ({
+  Array.from({ length: 16 }, (_, i) => ({
     index: i + 1,
     name: CHANNEL_NAMES[i]!,
     value: RC_MID,
@@ -32,9 +33,9 @@ const channels = ref<Channel[]>(
 )
 
 const mainChannels = computed(() => channels.value.slice(0, 4))
-const auxChannels = computed(() => channels.value.slice(4, 12))
+const auxChannels = computed(() => channels.value.slice(4))
 
-const rcCount = ref(12)
+const rcCount = ref(16)
 const rssi = ref(255)
 const frameCount = ref(0)
 const txCount = ref(0)
@@ -66,20 +67,32 @@ function calcCrc(buf: Uint8Array, start: number, end: number, extra: number): nu
 }
 
 function parseRcPayload(payload: Uint8Array) {
-  if (payload.length < 24) return
+  if (payload.length < 8) return
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
-  const flashTimersLocal: ReturnType<typeof setTimeout>[] = []
-  for (let i = 0; i < 12; i++) {
-    const val = view.getUint16(i * 2, true)
+  const count = Math.floor(payload.length / 2)
+  const values = new Array<number>(count)
+  for (let i = 0; i < count; i++) {
+    values[i] = view.getUint16(i * 2, true)
+  }
+
+  // 飞控 MSP_RC 顺序：roll, pitch, throttle, yaw, aux1...
+  const mapped = [values[0]!, values[1]!, values[3]!, values[2]!, ...values.slice(4)]
+  applyRcValues(mapped, mapped.length)
+}
+
+function applyRcValues(values: number[], count: number) {
+  const limit = Math.min(values.length, channels.value.length)
+  for (let i = 0; i < limit; i++) {
+    const val = values[i]!
     const ch = channels.value[i]!
     const changed = ch.value !== val
     ch.value = val
     if (changed) {
       ch.active = true
-      flashTimersLocal.push(setTimeout(() => { ch.active = false }, 300))
+      setTimeout(() => { ch.active = false }, 300)
     }
   }
-  rcCount.value = 12
+  rcCount.value = Math.max(4, Math.min(count, channels.value.length))
   frameCount.value++
   fpsFrames++
   updatedAt.value = timestamp()
@@ -88,7 +101,7 @@ function parseRcPayload(payload: Uint8Array) {
 function parseCustomRcPayload(payload: Uint8Array) {
   if (payload.length < 26) return
   parseRcPayload(payload.subarray(0, 24))
-  rcCount.value = payload[24]!
+  rcCount.value = Math.max(4, Math.min(payload[24]!, channels.value.length))
   rssi.value = payload[25]!
 }
 
@@ -169,17 +182,16 @@ function stopPolling() {
 
 export function useReceiverInfo() {
   const { getInstance } = useSerial()
-  const { onMessage } = useMsp()
+  const { onRcMessage } = useMsp()
   const serial = getInstance()
 
   const handleConnected = () => startPolling()
   const handleDisconnected = () => stopPolling()
 
   onMounted(() => {
-    unbindRcMessage = onMessage(MSP_CMD.RC, (frame) => {
+    unbindRcMessage = onRcMessage((rc) => {
       if (!ENABLE_MSP_PROTOCOL) return
-      if (frame.direction !== '>') return
-      parseRcPayload(frame.payload)
+      applyRcValues(rc.channels, rc.rawCount)
     })
     if (ENABLE_CUSTOM_PROTOCOL) {
       serial.addEventListener('data', handleCustomData)

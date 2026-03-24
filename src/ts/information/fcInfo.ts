@@ -64,6 +64,7 @@ function parseVerMsg(bytes: Uint8Array) {
 async function sendQueryCmd() {
   if (!ENABLE_CUSTOM_PROTOCOL) return
   const { getInstance } = useSerial()
+  console.log(`[CUSTOM TX] frame=${toHex(QUERY_CMD)}`)
   await getInstance().send(QUERY_CMD)
 }
 
