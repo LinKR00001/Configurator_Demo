@@ -62,17 +62,17 @@
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">X 轴</span>
                 <span class="data-value">{{ imuData.accX.toFixed(3) }}</span>
-                <span class="data-unit">m/s²</span>
+                <span class="data-unit">g</span>
               </div>
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">Y 轴</span>
                 <span class="data-value">{{ imuData.accY.toFixed(3) }}</span>
-                <span class="data-unit">m/s²</span>
+                <span class="data-unit">g</span>
               </div>
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">Z 轴</span>
                 <span class="data-value">{{ imuData.accZ.toFixed(3) }}</span>
-                <span class="data-unit">m/s²</span>
+                <span class="data-unit">g</span>
               </div>
             </div>
           </div>

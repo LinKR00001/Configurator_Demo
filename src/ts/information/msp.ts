@@ -56,12 +56,12 @@ export interface MspRcFrame {
 }
 
 export interface MspImuFrame {
-  accX: number
-  accY: number
-  accZ: number
-  gyroX: number
-  gyroY: number
-  gyroZ: number
+  accX: number   // g
+  accY: number   // g
+  accZ: number   // g
+  gyroX: number  // rad/s
+  gyroY: number  // rad/s
+  gyroZ: number  // rad/s
 }
 
 export interface MspAttitudeFrame {
@@ -181,24 +181,29 @@ function dispatchFrame(frame: MspFrame) {
 function parseImuPayload(payload: Uint8Array): MspImuFrame | null {
   if (payload.length < 12) return null
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
-  const toDisplayValue = (raw: number) => Number((raw / 1000).toFixed(3))
+  // ACC: 512 units per g  → divide by 512
+  const toAcc  = (raw: number) => Number((raw / 512).toFixed(4))
+  // GYRO: 1 unit per deg/s  → multiply by π/180 to get rad/s
+  const DEG_TO_RAD = Math.PI / 180
+  const toGyro = (raw: number) => Number((raw * DEG_TO_RAD).toFixed(4))
   return {
-    accX:  toDisplayValue(view.getInt16(0,  true)),
-    accY:  toDisplayValue(view.getInt16(2,  true)),
-    accZ:  toDisplayValue(view.getInt16(4,  true)),
-    gyroX: toDisplayValue(view.getInt16(6,  true)),
-    gyroY: toDisplayValue(view.getInt16(8,  true)),
-    gyroZ: toDisplayValue(view.getInt16(10, true)),
+    accX:  toAcc(view.getInt16(0,  true)),
+    accY:  toAcc(view.getInt16(2,  true)),
+    accZ:  toAcc(view.getInt16(4,  true)),
+    gyroX: toGyro(view.getInt16(6,  true)),
+    gyroY: toGyro(view.getInt16(8,  true)),
+    gyroZ: toGyro(view.getInt16(10, true)),
   }
 }
 
 function parseAttitudePayload(payload: Uint8Array): MspAttitudeFrame | null {
   if (payload.length < 6) return null
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
+  // Attitude: 0.1 deg resolution → divide by 10
   return {
-    roll:  view.getInt16(0, true) / 10,
-    pitch: view.getInt16(2, true) / 10,
-    yaw:   view.getInt16(4, true),
+    roll:  Number((view.getInt16(0, true) / 10).toFixed(1)),
+    pitch: Number((view.getInt16(2, true) / 10).toFixed(1)),
+    yaw:   Number((view.getInt16(4, true) / 10).toFixed(1)),
   }
 }
 

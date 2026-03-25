@@ -37,6 +37,41 @@ mspDescriptor_t mspDescriptorAlloc(void)
 #define FC_VERSION_STRING STR(FC_VERSION_YEAR) "." STR(FC_VERSION_MONTH) "." STR(FC_VERSION_PATCH_LEVEL) FC_VERSION_SUFFIX_STR
 extern RCDATA_t rcData;
 
+/* ---------------------------------------------------------------
+ * MSP encoding helpers
+ *
+ *  encodeAcc   : float in g       → int16  (1 unit = 1/512 g,  range ±64 g)
+ *  encodeGyro  : float in rad/s   → int16  (1 unit = 1 deg/s,  range ±572 rad/s)
+ *  encodeAttitude: float in deg   → int16  (1 unit = 0.1 °,    range ±3276.7 °)
+ * --------------------------------------------------------------- */
+#define RAD_TO_DEG_F  (180.0f / 3.14159265358979f)
+
+static uint16_t encodeToInt16Clamped(float value)
+{
+    long v = lrintf(value);
+    if (v >  32767) v =  32767;
+    if (v < -32768) v = -32768;
+    return (uint16_t)(int16_t)v;
+}
+
+/* acc in g  →  int16 at 512 units/g */
+static uint16_t encodeAcc(float acc_g)
+{
+    return encodeToInt16Clamped(acc_g * 512.0f);
+}
+
+/* gyro in rad/s  →  int16 at 1 unit per deg/s */
+static uint16_t encodeGyro(float gyro_rads)
+{
+    return encodeToInt16Clamped(gyro_rads * RAD_TO_DEG_F);
+}
+
+/* attitude angle in degrees  →  int16 at 0.1 deg resolution */
+static uint16_t encodeAttitude(float deg)
+{
+    return encodeToInt16Clamped(deg * 10.0f);
+}
+
 static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProcessFnPtr *mspPostProcessFn)
 {
     bool unsupportedCommand = false;
@@ -75,14 +110,16 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
             sbufWriteU32(dst, armingDisableFlags);
             sbufWriteU8(dst, 0); // accCalibAxisFlags
             break;
-        case MSP_RAW_IMU: 
-            sbufWriteU16(dst, lrintf(sensorData.acc.x));
-            sbufWriteU16(dst, lrintf(sensorData.acc.y));
-            sbufWriteU16(dst, lrintf(sensorData.acc.z));
-            sbufWriteU16(dst, sensorData.gyro.x);
-            sbufWriteU16(dst, sensorData.gyro.y);
-            sbufWriteU16(dst, sensorData.gyro.z);
-            break
+        case MSP_RAW_IMU:
+            /* acc: g units  → 512 units/g  (MSP standard) */
+            sbufWriteU16(dst, encodeAcc(sensorData.acc.x));
+            sbufWriteU16(dst, encodeAcc(sensorData.acc.y));
+            sbufWriteU16(dst, encodeAcc(sensorData.acc.z));
+            /* gyro: rad/s  → 1 unit per deg/s */
+            sbufWriteU16(dst, encodeGyro(sensorData.gyro.x));
+            sbufWriteU16(dst, encodeGyro(sensorData.gyro.y));
+            sbufWriteU16(dst, encodeGyro(sensorData.gyro.z));
+            break;
         case MSP_RC:
             sbufWriteU16(dst, rcData.roll);
             sbufWriteU16(dst, rcData.pitch);
@@ -102,10 +139,11 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
             sbufWriteU16(dst, rcData.aux12);
             break;
         case MSP_ATTITUDE:
-            sbufWriteU16(dst, state.attitude.x);
-            sbufWriteU16(dst, state.attitude.y);
-            sbufWriteU16(dst, state.attitude.z);
-        break;
+            /* attitude angles in degrees  → 0.1 deg resolution (MSP standard) */
+            sbufWriteU16(dst, encodeAttitude(state.attitude.x));
+            sbufWriteU16(dst, encodeAttitude(state.attitude.y));
+            sbufWriteU16(dst, encodeAttitude(state.attitude.z));
+            break;
         case MSP_PID:
             for (int i = 0; i < PID_ITEM_COUNT; i++) {
                 sbufWriteU8(dst, currentPidProfile->pid[i].P);
