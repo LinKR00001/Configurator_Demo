@@ -105,9 +105,15 @@ function toHex(bytes: Uint8Array): string {
     .join(' ')
 }
 
+function formatTimeWithMilliseconds(): string {
+  const now = new Date()
+  const ms = now.getMilliseconds().toString().padStart(3, '0')
+  return `${now.toLocaleTimeString('zh-CN', { hour12: false })}.${ms}`
+}
+
 function dispatchFrame(frame: MspFrame) {
   if (ENABLE_MSP_PROTOCOL && ENABLE_MSP_RX_FRAME_LOG) {
-    const now = new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })
+    const now = formatTimeWithMilliseconds()
     console.log(
       `[MSP RX ${now}] dir=${frame.direction} cmd=${frame.command} len=${frame.payload.length} payload=${toHex(frame.payload)}`
     )
@@ -136,13 +142,14 @@ function dispatchFrame(frame: MspFrame) {
 function parseImuPayload(payload: Uint8Array): MspImuFrame | null {
   if (payload.length < 12) return null
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
+  const toDisplayValue = (raw: number) => Number((raw / 1000).toFixed(3))
   return {
-    accX:  view.getInt16(0,  true),
-    accY:  view.getInt16(2,  true),
-    accZ:  view.getInt16(4,  true),
-    gyroX: view.getInt16(6,  true),
-    gyroY: view.getInt16(8,  true),
-    gyroZ: view.getInt16(10, true),
+    accX:  toDisplayValue(view.getInt16(0,  true)),
+    accY:  toDisplayValue(view.getInt16(2,  true)),
+    accZ:  toDisplayValue(view.getInt16(4,  true)),
+    gyroX: toDisplayValue(view.getInt16(6,  true)),
+    gyroY: toDisplayValue(view.getInt16(8,  true)),
+    gyroZ: toDisplayValue(view.getInt16(10, true)),
   }
 }
 
@@ -272,7 +279,7 @@ export function useMsp() {
 
   async function send(command: number, payload: Uint8Array = new Uint8Array(0)): Promise<boolean> {
     const frame = encodeMspV1Frame(command, payload)
-    const now = new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })
+    const now = formatTimeWithMilliseconds()
     console.log(`[MSP TX ${now}] cmd=${command} len=${payload.length} frame=${toHex(frame)}`)
     return serial.send(frame)
   }

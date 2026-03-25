@@ -19,7 +19,9 @@ let flashTimer: ReturnType<typeof setTimeout> | null = null
 let unbindImuMessage: (() => void) | null = null
 
 function timestamp() {
-  return new Date().toLocaleTimeString('zh-CN', { hour12: false })
+  const now = new Date()
+  const ms = now.getMilliseconds().toString().padStart(3, '0')
+  return `${now.toLocaleTimeString('zh-CN', { hour12: false })}.${ms}`
 }
 
 function applyImuValues(accX: number, accY: number, accZ: number, gyroX: number, gyroY: number, gyroZ: number) {

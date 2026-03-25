@@ -31,24 +31,24 @@
           <!-- 陀螺仪角速度 -->
           <div class="panel">
             <div class="panel-header">
-              <h2>陀螺仪角速度（rad/s）</h2>
+              <h2>陀螺仪</h2>
               <span class="updated-at" v-if="imuUpdatedAt">{{ imuUpdatedAt }}</span>
             </div>
             <div class="data-grid">
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">X（横滚轴）</span>
-                <span class="data-value">{{ imuData.gyroX.toFixed(0) }}</span>
-                <span class="data-unit">lsb</span>
+                <span class="data-value">{{ imuData.gyroX.toFixed(3) }}</span>
+                <span class="data-unit">rad/s</span>
               </div>
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">Y（俯仰轴）</span>
-                <span class="data-value">{{ imuData.gyroY.toFixed(0) }}</span>
-                <span class="data-unit">lsb</span>
+                <span class="data-value">{{ imuData.gyroY.toFixed(3) }}</span>
+                <span class="data-unit">rad/s</span>
               </div>
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">Z（偏航轴）</span>
-                <span class="data-value">{{ imuData.gyroZ.toFixed(0) }}</span>
-                <span class="data-unit">lsb</span>
+                <span class="data-value">{{ imuData.gyroZ.toFixed(3) }}</span>
+                <span class="data-unit">rad/s</span>
               </div>
             </div>
           </div>
@@ -56,23 +56,23 @@
           <!-- 加速度计 -->
           <div class="panel">
             <div class="panel-header">
-              <h2>加速度计（m/s²）</h2>
+              <h2>加速度计</h2>
             </div>
             <div class="data-grid">
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">X 轴</span>
-                <span class="data-value">{{ imuData.accX.toFixed(0) }}</span>
-                <span class="data-unit">lsb</span>
+                <span class="data-value">{{ imuData.accX.toFixed(3) }}</span>
+                <span class="data-unit">m/s²</span>
               </div>
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">Y 轴</span>
-                <span class="data-value">{{ imuData.accY.toFixed(0) }}</span>
-                <span class="data-unit">lsb</span>
+                <span class="data-value">{{ imuData.accY.toFixed(3) }}</span>
+                <span class="data-unit">m/s²</span>
               </div>
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">Z 轴</span>
-                <span class="data-value">{{ imuData.accZ.toFixed(0) }}</span>
-                <span class="data-unit">lsb</span>
+                <span class="data-value">{{ imuData.accZ.toFixed(3) }}</span>
+                <span class="data-unit">m/s²</span>
               </div>
             </div>
           </div>
