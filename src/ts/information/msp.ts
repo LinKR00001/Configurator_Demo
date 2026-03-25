@@ -36,6 +36,9 @@ export const MSP_CMD = {
   NAME: 10,
   RAW_IMU: 102,
   RC: 105,
+  ATTITUDE: 108,
+  PID: 112,
+  SET_PID: 202,
   SET_MOTOR: 214,
 } as const
 
@@ -61,13 +64,35 @@ export interface MspImuFrame {
   gyroZ: number
 }
 
+export interface MspAttitudeFrame {
+  roll: number   // degrees
+  pitch: number  // degrees
+  yaw: number    // degrees
+}
+
+export interface MspPidFrame {
+  rollP: number
+  rollI: number
+  rollD: number
+  pitchP: number
+  pitchI: number
+  pitchD: number
+  yawP: number
+  yawI: number
+  yawD: number
+}
+
 type MspHandler = (frame: MspFrame) => void
 type MspRcHandler = (rc: MspRcFrame) => void
 type MspImuHandler = (imu: MspImuFrame) => void
+type MspAttitudeHandler = (attitude: MspAttitudeFrame) => void
+type MspPidHandler = (pid: MspPidFrame) => void
 
 const listenersByCmd = new Map<number, Set<MspHandler>>()
 const rcListeners = new Set<MspRcHandler>()
 const imuListeners = new Set<MspImuHandler>()
+const attitudeListeners = new Set<MspAttitudeHandler>()
+const pidListeners = new Set<MspPidHandler>()
 
 let initialized = false
 let rxBuf = new Uint8Array(512)
@@ -137,6 +162,20 @@ function dispatchFrame(frame: MspFrame) {
       imuListeners.forEach((handler) => handler(imu))
     }
   }
+
+  if (frame.direction === '>' && frame.command === MSP_CMD.ATTITUDE) {
+    const attitude = parseAttitudePayload(frame.payload)
+    if (attitude) {
+      attitudeListeners.forEach((handler) => handler(attitude))
+    }
+  }
+
+  if (frame.direction === '>' && frame.command === MSP_CMD.PID) {
+    const pid = parsePidPayload(frame.payload)
+    if (pid) {
+      pidListeners.forEach((handler) => handler(pid))
+    }
+  }
 }
 
 function parseImuPayload(payload: Uint8Array): MspImuFrame | null {
@@ -150,6 +189,32 @@ function parseImuPayload(payload: Uint8Array): MspImuFrame | null {
     gyroX: toDisplayValue(view.getInt16(6,  true)),
     gyroY: toDisplayValue(view.getInt16(8,  true)),
     gyroZ: toDisplayValue(view.getInt16(10, true)),
+  }
+}
+
+function parseAttitudePayload(payload: Uint8Array): MspAttitudeFrame | null {
+  if (payload.length < 6) return null
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
+  return {
+    roll:  view.getInt16(0, true) / 10,
+    pitch: view.getInt16(2, true) / 10,
+    yaw:   view.getInt16(4, true),
+  }
+}
+
+function parsePidPayload(payload: Uint8Array): MspPidFrame | null {
+  // MSP_PID payload starts with Roll/Pitch/Yaw in P-I-D byte triplets.
+  if (payload.length < 9) return null
+  return {
+    rollP: payload[0]!,
+    rollI: payload[1]!,
+    rollD: payload[2]!,
+    pitchP: payload[3]!,
+    pitchI: payload[4]!,
+    pitchD: payload[5]!,
+    yawP: payload[6]!,
+    yawI: payload[7]!,
+    yawD: payload[8]!,
   }
 }
 
@@ -277,6 +342,20 @@ export function useMsp() {
     }
   }
 
+  function onAttitudeMessage(handler: MspAttitudeHandler): () => void {
+    attitudeListeners.add(handler)
+    return () => {
+      attitudeListeners.delete(handler)
+    }
+  }
+
+  function onPidMessage(handler: MspPidHandler): () => void {
+    pidListeners.add(handler)
+    return () => {
+      pidListeners.delete(handler)
+    }
+  }
+
   async function send(command: number, payload: Uint8Array = new Uint8Array(0)): Promise<boolean> {
     const frame = encodeMspV1Frame(command, payload)
     const now = formatTimeWithMilliseconds()
@@ -288,6 +367,8 @@ export function useMsp() {
     onMessage,
     onRcMessage,
     onImuMessage,
+    onAttitudeMessage,
+    onPidMessage,
     send,
   }
 }

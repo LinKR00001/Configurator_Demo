@@ -244,7 +244,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useSerial } from '@/composables/useSerial'
 import { useGyroInfo } from '@/ts/information/gyroInfo'
 
@@ -257,17 +257,14 @@ const {
   updatedAt: imuUpdatedAt,
   frameRate,
   imuActive,
+  attitudeData,
+  attitudeUpdatedAt,
+  attitudeActive,
 } = useGyroInfo()
 
-// 姿态角占位（暂无 MSP_ATTITUDE 支持，始终为 0）
-const attitudeUpdatedAt = ref('')
-const attitudeActive    = ref(false)
-
-const CENTI_RAD_TO_DEG = 180 / (Math.PI * 100)
-// attitude 固定为 0，3D 模型静止显示
-const rollDeg  = computed(() => 0)
-const pitchDeg = computed(() => 0)
-const yawDeg   = computed(() => 0)
+const rollDeg  = computed(() => attitudeData.value.roll)
+const pitchDeg = computed(() => attitudeData.value.pitch)
+const yawDeg   = computed(() => attitudeData.value.yaw)
 
 // ── 3D 模型样式 ───────────────────────────────────────────────
 const droneStyle = computed(() => ({

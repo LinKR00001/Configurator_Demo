@@ -17,7 +17,7 @@
         <button
           v-if="connectionState.isConnected"
           :class="['btn-sm', 'btn-primary']"
-          @click="startPolling"
+          @click="readPidOnce"
         >
           读取
         </button>
@@ -25,7 +25,7 @@
         <button
           v-if="connectionState.isConnected"
           :class="['btn-sm', 'btn-primary']"
-          @click="startPolling"
+          @click="writePidOnce"
         >
           设置
         </button>
@@ -168,15 +168,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
+import { MSP_CMD, useMsp, type MspPidFrame } from '@/ts/information/msp'
+import { ENABLE_MSP_PROTOCOL } from '@/ts/information/protocolFlags'
 
 const { getInstance, connectionState } = useSerial()
-
-// ── MAVLink 协议常量 ──────────────────────────────────────────
-const MAV_STX           = 0xFE
-const MSG_ID_PID        = 14
-const CRC_EXTRA_PID     = 158
-const MSG_ID_COMMAND    = 14
-const CRC_EXTRA_COMMAND = 58
+const { onPidMessage, send } = useMsp()
 
 // ── PID 数据 ──────────────────────────────────────────────────
 interface PidData {
@@ -202,24 +198,6 @@ const frameCount  = ref(0)
 const frameRate   = ref(0)
 let   fpsFrames   = 0
 
-// ── 字节缓冲区 ────────────────────────────────────────────────
-let rxBuf = new Uint8Array(512)
-let rxLen = 0
-let txSeq = 0
-
-// ── MAVLink X25 CRC ──────────────────────────────────────────
-function crcAccumulate(byte: number, crc: number): number {
-  let tmp = (byte ^ (crc & 0xFF)) & 0xFF
-  tmp ^= (tmp << 4) & 0xFF
-  return (((crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)) & 0xFFFF)
-}
-
-function calcCrc(buf: Uint8Array, start: number, end: number, extra: number): number {
-  let crc = 0xFFFF
-  for (let i = start; i < end; i++) crc = crcAccumulate(buf[i]!, crc)
-  return crcAccumulate(extra, crc)
-}
-
 // 调整参数值（用于 + - 按钮）
 function adjustValue(key: keyof PidData, delta: number) {
   const current = pid.value[key]
@@ -229,116 +207,89 @@ function adjustValue(key: keyof PidData, delta: number) {
   }
 }
 
-// ── MAVLink v1 帧构建 ─────────────────────────────────────────
-function buildMavFrame(msgid: number, payload: Uint8Array, crcExtra: number): Uint8Array {
-  const frame = new Uint8Array(payload.length + 8)
-  frame[0] = MAV_STX; frame[1] = payload.length
-  frame[2] = txSeq++ & 0xFF; frame[3] = 0; frame[4] = 0; frame[5] = msgid
-  frame.set(payload, 6)
-  const crc = calcCrc(frame, 1, 6 + payload.length, crcExtra)
-  frame[6 + payload.length] = crc & 0xFF
-  frame[7 + payload.length] = (crc >> 8) & 0xFF
-  return frame
+function timestamp() {
+  const now = new Date()
+  const ms = now.getMilliseconds().toString().padStart(3, '0')
+  return `${now.toLocaleTimeString('zh-CN', { hour12: false })}.${ms}`
 }
 
-function buildQueryFrame(requestMsgId: number): Uint8Array {
-  const payload = new Uint8Array(11)
-  // const view = new DataView(payload.buffer)
-  // view.setFloat32(0, 0, true); view.setFloat32(4, 0, true)
-  // view.setUint16(8, requestMsgId, true); view.setUint8(10, 0)
-  return buildMavFrame(MSG_ID_COMMAND, payload, CRC_EXTRA_COMMAND)
+function toPidByte(value: number): number {
+  return Math.max(0, Math.min(255, Math.round(value)))
 }
 
-// ── 轮询控制 ─────────────────────────────────────────────────
-let fpsTimerId:  ReturnType<typeof setInterval> | null = null
-const POLL_INTERVAL_MS = 1000
-
-function startPolling() {
-  if (isPolling.value) return
-  isPolling.value = true; fpsFrames = 0; frameRate.value = 0
-
-    const serial = getInstance()
-    if (!serial.getConnected()) return
-    // 构建帧
-    const frame = buildQueryFrame(MSG_ID_PID)
-    const frame_d = new Uint8Array([0xFE, 0x0B, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0x95, 0x14])
-    console.log('发送查询帧:', frame_d)
-    serial.send(frame_d)
-    // await serial.send(buildQueryFrame(MSG_ID_PID))
-    txCount.value++
-
-  fpsTimerId = setInterval(() => { frameRate.value = fpsFrames; fpsFrames = 0 }, 1000)
+function buildSetPidPayload(): Uint8Array {
+  return new Uint8Array([
+    toPidByte(pid.value.rollP),
+    toPidByte(pid.value.rollI),
+    toPidByte(pid.value.rollD),
+    toPidByte(pid.value.pitchP),
+    toPidByte(pid.value.pitchI),
+    toPidByte(pid.value.pitchD),
+    toPidByte(pid.value.yawP),
+    toPidByte(pid.value.yawI),
+    toPidByte(pid.value.yawD),
+  ])
 }
 
-function stopPolling() {
-  isPolling.value = false
-  if (fpsTimerId  !== null) { clearInterval(fpsTimerId);  fpsTimerId  = null }
-  frameRate.value = 0
-}
-
-// ── PID payload 解析 ──────────────────────────────────────────
-function parsePid(payload: Uint8Array) {
-  const dv = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
+function applyPid(data: MspPidFrame) {
   pid.value = {
-    rollP:  Math.round(dv.getFloat32(0,  true)),
-    rollI:  Math.round(dv.getFloat32(4,  true)),
-    rollD:  Math.round(dv.getFloat32(8,  true)),
-    pitchP: Math.round(dv.getFloat32(12, true)),
-    pitchI: Math.round(dv.getFloat32(16, true)),
-    pitchD: Math.round(dv.getFloat32(20, true)),
-    yawP:   dv.getFloat32(24, true),
-    yawI:   Math.round(dv.getFloat32(28, true)),
-    yawD:   Math.round(dv.getFloat32(32, true)),
-    rollIMax:      payload[36]!,
-    rollDCutfreq:  payload[37]!,
-    pitchIMax:     payload[38]!,
-    pitchDCutfreq: payload[39]!,
-    yawIMax:       payload[40]!,
-    yawDCutfreq:   payload[41]!,
+    rollP: data.rollP,
+    rollI: data.rollI,
+    rollD: data.rollD,
+    pitchP: data.pitchP,
+    pitchI: data.pitchI,
+    pitchD: data.pitchD,
+    yawP: data.yawP,
+    yawI: data.yawI,
+    yawD: data.yawD,
+    rollIMax: 0,
+    rollDCutfreq: 0,
+    pitchIMax: 0,
+    pitchDCutfreq: 0,
+    yawIMax: 0,
+    yawDCutfreq: 0,
   }
   received.value = true
   frameCount.value++
   fpsFrames++
-  updatedAt.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
+  frameRate.value = fpsFrames
+  updatedAt.value = timestamp()
 }
 
-// ── 帧解析 ────────────────────────────────────────────────────
-function processBuffer() {
-  let i = 0
-  console.log('收到一包数据包')
-  while (i < rxLen) {
-    if (rxBuf[i] !== MAV_STX) { i++; continue }
-    if (i + 6 > rxLen) break
-    const pLen = rxBuf[i + 1]!
-    const fLen = pLen + 8
-    if (i + fLen > rxLen) break
-    if (rxBuf[i + 5] === MSG_ID_PID) {
-      console.log('接收到PID帧')
-      const crc = calcCrc(rxBuf, i + 1, i + 6 + pLen, CRC_EXTRA_PID)
-      if (rxBuf[i + 6 + pLen] === (crc & 0xFF) && rxBuf[i + 7 + pLen] === ((crc >> 8) & 0xFF)) {
-        parsePid(rxBuf.slice(i + 6, i + 6 + pLen))
-      }
-    }
-    i += fLen
+async function readPidOnce() {
+  if (!ENABLE_MSP_PROTOCOL) return
+  if (!connectionState.value.isConnected) return
+  isPolling.value = true
+  const ok = await send(MSP_CMD.PID)
+  if (ok) txCount.value++
+  isPolling.value = false
+}
+
+async function writePidOnce() {
+  if (!ENABLE_MSP_PROTOCOL) return
+  if (!connectionState.value.isConnected) return
+  isPolling.value = true
+  const payload = buildSetPidPayload()
+  const ok = await send(MSP_CMD.SET_PID, payload)
+  if (ok) {
+    txCount.value++
+    await readPidOnce()
   }
-  
-  if (i > 0 && i < rxLen) { rxBuf.copyWithin(0, i, rxLen); rxLen -= i }
-  else if (i >= rxLen) rxLen = 0
+  isPolling.value = false
 }
 
-function handleData(event: any) {
-  const chunk: Uint8Array = event.data
-  // console.log('[PidDebug RX]', chunk)
-  if (!chunk?.length) return
-  if (rxLen + chunk.length > rxBuf.length) {
-    const next = new Uint8Array(Math.max(rxBuf.length * 2, rxLen + chunk.length))
-    next.set(rxBuf.subarray(0, rxLen)); rxBuf = next
-  }
-  rxBuf.set(chunk, rxLen); rxLen += chunk.length; processBuffer()
-}
+let unbindPidMessage: (() => void) | null = null
 
-onMounted(()  => { getInstance().addEventListener('data', handleData) })
-onUnmounted(() => { stopPolling(); getInstance().removeEventListener('data', handleData) })
+onMounted(()  => {
+  if (!ENABLE_MSP_PROTOCOL) return
+  unbindPidMessage = onPidMessage((data) => {
+    applyPid(data)
+  })
+})
+onUnmounted(() => {
+  unbindPidMessage?.()
+  unbindPidMessage = null
+})
 </script>
 
 <style scoped>

@@ -13,10 +13,16 @@ const frameRate = ref(0)
 const imuActive = ref(false)
 let fpsFrames = 0
 
+const attitudeData     = ref({ roll: 0, pitch: 0, yaw: 0 })
+const attitudeUpdatedAt = ref('')
+const attitudeActive    = ref(false)
+
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let fpsTimer: ReturnType<typeof setInterval> | null = null
 let flashTimer: ReturnType<typeof setTimeout> | null = null
+let attitudeFlashTimer: ReturnType<typeof setTimeout> | null = null
 let unbindImuMessage: (() => void) | null = null
+let unbindAttitudeMessage: (() => void) | null = null
 
 function timestamp() {
   const now = new Date()
@@ -34,6 +40,14 @@ function applyImuValues(accX: number, accY: number, accZ: number, gyroX: number,
   flashTimer = setTimeout(() => { imuActive.value = false }, 300)
 }
 
+function applyAttitudeValues(roll: number, pitch: number, yaw: number) {
+  attitudeData.value = { roll, pitch, yaw }
+  attitudeUpdatedAt.value = timestamp()
+  attitudeActive.value = true
+  if (attitudeFlashTimer) clearTimeout(attitudeFlashTimer)
+  attitudeFlashTimer = setTimeout(() => { attitudeActive.value = false }, 300)
+}
+
 async function requestImu() {
   if (!ENABLE_MSP_PROTOCOL) return
   const { send } = useMsp()
@@ -41,11 +55,21 @@ async function requestImu() {
   if (ok) txCount.value++
 }
 
+async function requestAttitude() {
+  if (!ENABLE_MSP_PROTOCOL) return
+  const { send } = useMsp()
+  await send(MSP_CMD.ATTITUDE)
+}
+
 function startPolling() {
   if (pollTimer) return
   isPolling.value = true
   requestImu()
-  pollTimer = setInterval(requestImu, 50) // 20 Hz
+  requestAttitude()
+  pollTimer = setInterval(() => {
+    requestImu()      // 两帧同时入队，由 useSerial 的发送队列自动串行
+    requestAttitude()
+  }, 50) // 20 Hz
   if (!fpsTimer) {
     fpsTimer = setInterval(() => {
       frameRate.value = fpsFrames
@@ -61,12 +85,14 @@ function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
   if (fpsTimer)  { clearInterval(fpsTimer);  fpsTimer  = null }
   if (flashTimer) { clearTimeout(flashTimer); flashTimer = null }
+  if (attitudeFlashTimer) { clearTimeout(attitudeFlashTimer); attitudeFlashTimer = null }
   imuActive.value = false
+  attitudeActive.value = false
 }
 
 export function useGyroInfo() {
   const { getInstance } = useSerial()
-  const { onImuMessage } = useMsp()
+  const { onImuMessage, onAttitudeMessage } = useMsp()
   const serial = getInstance()
 
   const handleConnected    = () => startPolling()
@@ -77,6 +103,10 @@ export function useGyroInfo() {
       if (!ENABLE_MSP_PROTOCOL) return
       applyImuValues(imu.accX, imu.accY, imu.accZ, imu.gyroX, imu.gyroY, imu.gyroZ)
     })
+    unbindAttitudeMessage = onAttitudeMessage((att) => {
+      if (!ENABLE_MSP_PROTOCOL) return
+      applyAttitudeValues(att.roll, att.pitch, att.yaw)
+    })
     serial.addEventListener('connected',    handleConnected)
     serial.addEventListener('disconnected', handleDisconnected)
     if (serial.getConnected()) startPolling()
@@ -85,6 +115,8 @@ export function useGyroInfo() {
   onUnmounted(() => {
     unbindImuMessage?.()
     unbindImuMessage = null
+    unbindAttitudeMessage?.()
+    unbindAttitudeMessage = null
     serial.removeEventListener('connected',    handleConnected)
     serial.removeEventListener('disconnected', handleDisconnected)
     stopPolling()
@@ -98,5 +130,8 @@ export function useGyroInfo() {
     isPolling,
     frameRate,
     imuActive,
+    attitudeData,
+    attitudeUpdatedAt,
+    attitudeActive,
   }
 }

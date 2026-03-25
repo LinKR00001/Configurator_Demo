@@ -96,6 +96,8 @@ export class SerialManager {
   private listeners: Map<string, Set<(event: SerialConnectionEvent) => void>> = new Map()
   private reconnectAttempts = 0
   private maxReconnectAttempts = 3
+  // 串行发送队列：保证并发调用 send() 时不抢占 WritableStream writer
+  private _txQueue: Promise<boolean> = Promise.resolve(true)
 
   constructor(options: SerialPortOptions = {}) {
     this.options = { ...DEFAULT_OPTIONS, ...options }
@@ -209,9 +211,9 @@ export class SerialManager {
   }
 
   /**
-   * 发送数据
+   * 发送数据（内部实现，不加队列）
    */
-  async send(data: Uint8Array | ArrayBuffer): Promise<boolean> {
+  private async _doSend(data: Uint8Array | ArrayBuffer): Promise<boolean> {
     try {
       if (!this.isConnected || !this.port) {
         throw new Error('串口未连接')
@@ -240,6 +242,17 @@ export class SerialManager {
       console.error('发送失败:', err.message)
       return false
     }
+  }
+
+  /**
+   * 发送数据（串行队列，防止并发抢占 WritableStream writer）
+   */
+  async send(data: Uint8Array | ArrayBuffer): Promise<boolean> {
+    // 将本次发送追加到队列末尾；前一次无论成功失败均继续执行
+    const task = this._txQueue.then(() => this._doSend(data), () => this._doSend(data))
+    // 更新队列指针，忽略结果以防止未处理的 rejection
+    this._txQueue = task.then(() => true, () => false)
+    return task
   }
 
   /**

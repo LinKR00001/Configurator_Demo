@@ -101,6 +101,18 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
             sbufWriteU16(dst, rcData.aux11);
             sbufWriteU16(dst, rcData.aux12);
             break;
+        case MSP_ATTITUDE:
+            sbufWriteU16(dst, state.attitude.x);
+            sbufWriteU16(dst, state.attitude.y);
+            sbufWriteU16(dst, state.attitude.z);
+        break;
+        case MSP_PID:
+            for (int i = 0; i < PID_ITEM_COUNT; i++) {
+                sbufWriteU8(dst, currentPidProfile->pid[i].P);
+                sbufWriteU8(dst, currentPidProfile->pid[i].I);
+                sbufWriteU8(dst, currentPidProfile->pid[i].D);
+            }
+        break;
         case MSP_ANALOG:
             sbufWriteU8(dst, 0);
             sbufWriteU16(dst, 0); // milliamp hours drawn from battery
@@ -147,6 +159,19 @@ static mspResult_e mspCommonProcessInCommand(mspDescriptor_t srcDesc, int16_t cm
             break;
         case MSP2_SENSOR_OPTICALFLOW_MT:
             sv2OpticalflowReceiveNewData(sbufPtr(src));
+            break;
+        case MSP_SET_PID:
+            for (int i = 0; i < PID_ITEM_COUNT; i++) {
+                currentPidProfile->pid[i].P = sbufReadU8(src);
+                currentPidProfile->pid[i].I = sbufReadU8(src);
+                currentPidProfile->pid[i].D = sbufReadU8(src);
+            }
+            pidInitConfig(currentPidProfile);
+            break;
+        case MSP_SET_MOTOR:
+            for (int i = 0; i < getMotorCount(); i++) {
+                motor_disarmed[i] = motorConvertFromExternal(sbufReadU16(src));
+            }
             break;
         default:
             return MSP_RESULT_CMD_UNKNOWN;

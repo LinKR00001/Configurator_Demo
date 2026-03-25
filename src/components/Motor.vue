@@ -147,21 +147,24 @@ function handleMotorChange(index: number) {
 
   if (sendTimeout) clearTimeout(sendTimeout)
   sendTimeout = setTimeout(() => {
-    sendMotorCommands()
+    void sendMotorCommands()
   }, 20)
 }
 
-function sendMotorCommands() {
+async function sendMotorCommands() {
   const serial = getInstance()
   if (!serial.getConnected()) return
 
-  const payload = new Uint8Array(16)
+  // 飞控按 getMotorCount() 次 sbufReadU16 读取，前端按电机数发送对应 U16 即可。
+  const payload = new Uint8Array(motors.length * 2)
   const view = new DataView(payload.buffer)
   motors.forEach((m, i) => {
-    view.setUint16(i * 2, m.value, true)
+    const clamped = Math.max(1000, Math.min(2000, Math.round(m.value)))
+    view.setUint16(i * 2, clamped, true)
   })
 
-  sendMsp(MSP_CMD.SET_MOTOR, payload)
+  const ok = await sendMsp(MSP_CMD.SET_MOTOR, payload)
+  if (!ok) return
 
   txCount.value++
   lastUpdateTime.value = timestamp()
@@ -169,7 +172,7 @@ function sendMotorCommands() {
 
 function stopAllMotors() {
   motors.forEach(m => m.value = 1000)
-  sendMotorCommands()
+  void sendMotorCommands()
 }
 
 function toggleSafety() {
