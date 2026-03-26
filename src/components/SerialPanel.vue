@@ -1,24 +1,11 @@
 <template>
-    <!-- 已连接时显示飞控信息 -->
-    <!-- <template v-if="isConnected">
-      <div class="fc-info-chip">
-        <span class="fc-version">
-          v{{ fcInfo.majorVersion }}.{{ fcInfo.minorVersion }}.{{ fcInfo.patchVersion }}
-        </span>
-        <span class="fc-divider">|</span>
-        <span class="fc-target">{{ fcInfo.targetName }}</span>
-      </div>
-    </template> -->
-
   <div class="serial-header">
     <!-- 连接状态指示器（圆点 + 文本） -->
     <div class="status-indicator" :class="{ connected: isConnected }">
       <span class="status-dot"></span>
       <span class="status-text">{{ isConnected ? '已连接' : '未连接' }}</span>
     </div>
-
-
-
+    
     <!-- 未连接时显示波特率选择 + 连接按钮 -->
     <template v-if="!isConnected">
       <select v-model.number="selectedBaudRate" class="baud-select" title="波特率">
@@ -42,10 +29,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { DEFAULT_BAUD_RATES, DEFAULT_OPTIONS } from '@/utils/SerialManager'
-import { useGlobalSerialManager } from '@/composables/useGlobalSerialManager'
-import { useFCInfo } from '@/composables/useFCInfo'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { useSerial, DEFAULT_BAUD_RATES } from '@/composables/useSerial'
+import { useFCInfo } from '@/ts/information/fcInfo'
 
 const emit = defineEmits<{
   connected: [port: string]
@@ -53,16 +39,17 @@ const emit = defineEmits<{
   error: [error: string]
 }>()
 
-const { getInstance } = useGlobalSerialManager()
+const { getInstance, connectionState } = useSerial()
 const serialManager = getInstance()
 
-const { fcInfo, init: initFCInfo } = useFCInfo()
+const { init: initFCInfo } = useFCInfo()
 
-const isConnected = ref(false)
-const selectedBaudRate = ref(DEFAULT_OPTIONS.baudRate || 115200)
-const baudRates = ref(DEFAULT_BAUD_RATES)
+const selectedBaudRate = ref(115200)
+const baudRates = DEFAULT_BAUD_RATES
 const errorMessage = ref('')
-const connectedPort = ref('') // 可保留用于事件
+
+// 从全局状态获取连接状态
+const isConnected = computed(() => connectionState.value.isConnected)
 
 const toggleConnection = async () => {
   errorMessage.value = ''
@@ -78,14 +65,10 @@ const toggleConnection = async () => {
 }
 
 const handleConnected = () => {
-  isConnected.value = true
-  connectedPort.value = 'COM/ttyUSB' // 实际端口可从事件中获取
-  emit('connected', connectedPort.value)
+  emit('connected', connectionState.value.port || 'Serial Port')
 }
 
 const handleDisconnected = () => {
-  isConnected.value = false
-  connectedPort.value = ''
   emit('disconnected')
 }
 
@@ -99,12 +82,13 @@ onMounted(() => {
   serialManager.addEventListener('connected', handleConnected)
   serialManager.addEventListener('disconnected', handleDisconnected)
   serialManager.addEventListener('error', handleError)
-  // 启动全局飞控信息轮询（仅首次调用时注册，幂等）
   initFCInfo()
 })
 
 onUnmounted(async () => {
-  await serialManager.cleanup()
+  serialManager.removeEventListener('connected', handleConnected)
+  serialManager.removeEventListener('disconnected', handleDisconnected)
+  serialManager.removeEventListener('error', handleError)
 })
 </script>
 
