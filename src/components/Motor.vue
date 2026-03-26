@@ -114,6 +114,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
+import { MSP_CMD, useMsp } from '@/ts/information/msp'
 
 const { getInstance, connectionState } = useSerial()
 
@@ -133,7 +134,7 @@ const motors = reactive([
 const hasActiveMotors = computed(() => motors.some(m => m.value > 1000))
 
 // ── MSP 发送逻辑 ──────────────────────────────────────────────
-const MSP_SET_MOTOR = 214
+const { send: sendMsp } = useMsp()
 let sendTimeout: ReturnType<typeof setTimeout> | null = null
 
 function handleMotorChange(index: number) {
@@ -146,34 +147,24 @@ function handleMotorChange(index: number) {
 
   if (sendTimeout) clearTimeout(sendTimeout)
   sendTimeout = setTimeout(() => {
-    sendMotorCommands()
+    void sendMotorCommands()
   }, 20)
 }
 
-function sendMotorCommands() {
+async function sendMotorCommands() {
   const serial = getInstance()
   if (!serial.getConnected()) return
 
-  // 构建 MSP 请求帧
-  const payload = new Uint8Array(16)
+  // 飞控按 getMotorCount() 次 sbufReadU16 读取，前端按电机数发送对应 U16 即可。
+  const payload = new Uint8Array(motors.length * 2)
   const view = new DataView(payload.buffer)
   motors.forEach((m, i) => {
-    view.setUint16(i * 2, m.value, true)
+    const clamped = Math.max(1000, Math.min(2000, Math.round(m.value)))
+    view.setUint16(i * 2, clamped, true)
   })
 
-  // MSP 编码
-  const header = new Uint8Array([0x24, 0x4D, 0x3C, 16, MSP_SET_MOTOR])
-  const frame = new Uint8Array(header.length + payload.length + 1)
-  frame.set(header, 0)
-  frame.set(payload, header.length)
-
-  // 计算 CRC
-  let crc = 0
-  for (let i = 3; i < header.length; i++) crc ^= header[i]!
-  for (let i = 0; i < payload.length; i++) crc ^= payload[i]!
-  frame[header.length + payload.length] = crc
-
-  serial.send(frame)
+  const ok = await sendMsp(MSP_CMD.SET_MOTOR, payload)
+  if (!ok) return
 
   txCount.value++
   lastUpdateTime.value = timestamp()
@@ -181,7 +172,7 @@ function sendMotorCommands() {
 
 function stopAllMotors() {
   motors.forEach(m => m.value = 1000)
-  sendMotorCommands()
+  void sendMotorCommands()
 }
 
 function toggleSafety() {

@@ -27,6 +27,25 @@ export interface ConnectionState {
   connectedAt: number | null
 }
 
+/**
+ * 将 ReadableStreamDefaultReader 封装为可 for-await-of 的异步迭代器。
+ * 通过 shouldContinue 让循环在 disconnect/断连时可及时退出。
+ */
+async function* streamAsyncIterable(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  shouldContinue: () => boolean,
+  onDone?: () => void
+): AsyncGenerator<Uint8Array> {
+  while (shouldContinue()) {
+    const { done, value } = await reader.read()
+    if (done) {
+      onDone?.()
+      break
+    }
+    if (value) yield value
+  }
+}
+
 // Web Serial API 类型定义
 interface SerialPort {
   readable: ReadableStream<Uint8Array> | null
@@ -57,9 +76,7 @@ declare global {
 
 // ==================== Constants ====================
 export const DEFAULT_BAUD_RATES = [
-  9600, 19200, 38400, 57600, 115200, 230400,
-  250000, 400000, 460800, 500000, 921600,
-  1000000, 1500000, 2000000, 2470000
+  9600, 19200, 38400, 57600, 115200
 ]
 
 export const DEFAULT_OPTIONS: SerialPortOptions = {
@@ -79,6 +96,8 @@ export class SerialManager {
   private listeners: Map<string, Set<(event: SerialConnectionEvent) => void>> = new Map()
   private reconnectAttempts = 0
   private maxReconnectAttempts = 3
+  // 串行发送队列：保证并发调用 send() 时不抢占 WritableStream writer
+  private _txQueue: Promise<boolean> = Promise.resolve(true)
 
   constructor(options: SerialPortOptions = {}) {
     this.options = { ...DEFAULT_OPTIONS, ...options }
@@ -192,9 +211,9 @@ export class SerialManager {
   }
 
   /**
-   * 发送数据
+   * 发送数据（内部实现，不加队列）
    */
-  async send(data: Uint8Array | ArrayBuffer): Promise<boolean> {
+  private async _doSend(data: Uint8Array | ArrayBuffer): Promise<boolean> {
     try {
       if (!this.isConnected || !this.port) {
         throw new Error('串口未连接')
@@ -226,6 +245,17 @@ export class SerialManager {
   }
 
   /**
+   * 发送数据（串行队列，防止并发抢占 WritableStream writer）
+   */
+  async send(data: Uint8Array | ArrayBuffer): Promise<boolean> {
+    // 将本次发送追加到队列末尾；前一次无论成功失败均继续执行
+    const task = this._txQueue.then(() => this._doSend(data), () => this._doSend(data))
+    // 更新队列指针，忽略结果以防止未处理的 rejection
+    this._txQueue = task.then(() => true, () => false)
+    return task
+  }
+
+  /**
    * 发送字符串
    */
   async sendString(text: string): Promise<boolean> {
@@ -243,6 +273,7 @@ export class SerialManager {
     }
 
     this.isReading = true
+
     Promise.resolve().then(() => this.readLoop())
   }
 
@@ -250,22 +281,24 @@ export class SerialManager {
    * 读取循环
    */
   private async readLoop(): Promise<void> {
+    console.log('开始读取循环')
     try {
       const reader = this.port!.readable!.getReader()
       this.reader = reader
 
-      while (this.isReading && this.isConnected) {
-        const { done, value } = await reader.read()
+      let didDone = false
+      for await (const value of streamAsyncIterable(
+        reader,
+        () => this.isReading && this.isConnected,
+        () => { didDone = true }
+      )) {
+        this.handleReceivedData(value)
+      }
 
-        if (done) {
-          console.log('读取流已关闭，设备可能已断开')
-          this.handleDeviceDisconnect('读取流已关闭')
-          break
-        }
-
-        if (value) {
-          this.handleReceivedData(value)
-        }
+      // 只有当 reader.read() 返回 done（读取流关闭）时才触发设备断连
+      if (didDone && this.isConnected) {
+        console.log('读取流已关闭，设备可能已断开')
+        this.handleDeviceDisconnect('读取流已关闭')
       }
     } catch (error) {
       if (this.isReading) {

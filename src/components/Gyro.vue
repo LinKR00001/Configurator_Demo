@@ -21,33 +21,31 @@
       <p>请先通过顶部串口面板连接飞控</p>
     </div>
 
-    <!-- 主内容：左侧数据 + 右侧 3D 模型 -->
+    <!-- 主内容 -->
     <template v-else>
       <div class="main-layout">
-
-        <!-- ── 左侧：数据面板 ─────────────────────────────── -->
         <div class="data-col">
 
           <!-- 陀螺仪角速度 -->
           <div class="panel">
             <div class="panel-header">
-              <h2>陀螺仪角速度（rad/s）</h2>
+              <h2>陀螺仪</h2>
               <span class="updated-at" v-if="imuUpdatedAt">{{ imuUpdatedAt }}</span>
             </div>
             <div class="data-grid">
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">X（横滚轴）</span>
-                <span class="data-value">{{ imuData.xGyro.toFixed(4) }}</span>
+                <span class="data-value">{{ imuData.gyroX.toFixed(3) }}</span>
                 <span class="data-unit">rad/s</span>
               </div>
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">Y（俯仰轴）</span>
-                <span class="data-value">{{ imuData.yGyro.toFixed(4) }}</span>
+                <span class="data-value">{{ imuData.gyroY.toFixed(3) }}</span>
                 <span class="data-unit">rad/s</span>
               </div>
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">Z（偏航轴）</span>
-                <span class="data-value">{{ imuData.zGyro.toFixed(4) }}</span>
+                <span class="data-value">{{ imuData.gyroZ.toFixed(3) }}</span>
                 <span class="data-unit">rad/s</span>
               </div>
             </div>
@@ -56,23 +54,23 @@
           <!-- 加速度计 -->
           <div class="panel">
             <div class="panel-header">
-              <h2>加速度计（m/s²）</h2>
+              <h2>加速度计</h2>
             </div>
             <div class="data-grid">
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">X 轴</span>
-                <span class="data-value">{{ imuData.xAcc.toFixed(4) }}</span>
-                <span class="data-unit">m/s²</span>
+                <span class="data-value">{{ imuData.accX.toFixed(3) }}</span>
+                <span class="data-unit">g</span>
               </div>
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">Y 轴</span>
-                <span class="data-value">{{ imuData.yAcc.toFixed(4) }}</span>
-                <span class="data-unit">m/s²</span>
+                <span class="data-value">{{ imuData.accY.toFixed(3) }}</span>
+                <span class="data-unit">g</span>
               </div>
               <div :class="['data-card', { 'data-card--active': imuActive }]">
                 <span class="data-label">Z 轴</span>
-                <span class="data-value">{{ imuData.zAcc.toFixed(4) }}</span>
-                <span class="data-unit">m/s²</span>
+                <span class="data-value">{{ imuData.accZ.toFixed(3) }}</span>
+                <span class="data-unit">g</span>
               </div>
             </div>
           </div>
@@ -106,116 +104,19 @@
           <div class="panel panel--stat">
             <div class="stat-row">
               <span class="stat-item">已解析帧：<strong>{{ frameCount }}</strong></span>
-              <span class="stat-item">IMU：<strong>{{ imuFrameCount }}</strong></span>
-              <span class="stat-item">ATTITUDE：<strong>{{ attitudeFrameCount }}</strong></span>
-              <span class="stat-item">CRC 错误：<strong>{{ crcErrorCount }}</strong></span>
               <span class="stat-item">已发送请求：<strong>{{ txCount }}</strong></span>
             </div>
           </div>
         </div>
 
-        <!-- ── 右侧：3D 姿态模型 ──────────────────────────── -->
+        <!-- ── 右侧：Three.js 3D 飞机姿态模型 ── -->
         <div class="model-col">
           <div class="model-card">
-            <div class="model-title">姿态 3D 预览</div>
-
-            <!-- 3D 场景 -->
+            <div class="panel-header model-header"><h2>3D 预览</h2></div>
             <div class="scene-wrapper">
-              <!-- 天地背景（随俯仰+横滚变化） -->
-              <div class="horizon-bg" :style="horizonBgStyle"></div>
-
-              <!-- 地平线参考线 -->
-              <div class="horizon-line" :style="horizonLineStyle"></div>
-
-              <!-- 3D 透视容器 -->
-              <div class="scene">
-                <div class="drone-pivot" :style="droneStyle">
-                  <svg
-                    class="drone-svg"
-                    viewBox="-130 -105 260 210"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <!--
-                      斜前上方视角（约 35° 仰角）：
-                      机头朝上，机身竖直，左右机臂水平展开
-                      roll  → 机翼上下倾斜（最直观）
-                      pitch → 机身前后倾斜
-                      yaw   → 机身左右转动
-                    -->
-
-                    <!-- ① 后侧机臂（先画，被前臂遮挡） -->
-                    <line x1="-18" y1="12" x2="-82" y2="38"
-                          stroke="#1e293b" stroke-width="8" stroke-linecap="round"/>
-                    <line x1="18" y1="12" x2="82" y2="38"
-                          stroke="#1e293b" stroke-width="8" stroke-linecap="round"/>
-
-                    <!-- ② 后侧电机 -->
-                    <circle cx="-88" cy="42" r="18" fill="#111827" stroke="#334155" stroke-width="2"/>
-                    <circle cx="88" cy="42" r="18" fill="#111827" stroke="#334155" stroke-width="2"/>
-                    <!-- 后侧螺旋桨（水平椭圆模拟透视） -->
-                    <ellipse cx="-88" cy="42" rx="22" ry="6" fill="none" stroke="#475569" stroke-width="1.5"/>
-                    <ellipse cx="88" cy="42" rx="22" ry="6" fill="none" stroke="#475569" stroke-width="1.5"/>
-
-                    <!-- ③ 前侧机臂 -->
-                    <line x1="-18" y1="-12" x2="-88" y2="-42"
-                          stroke="#475569" stroke-width="9" stroke-linecap="round"/>
-                    <line x1="18" y1="-12" x2="88" y2="-42"
-                          stroke="#475569" stroke-width="9" stroke-linecap="round"/>
-
-                    <!-- ④ 前侧电机 -->
-                    <circle cx="-94" cy="-46" r="21" fill="#1e293b" stroke="#38bdf8" stroke-width="2.5"/>
-                    <circle cx="94" cy="-46" r="21" fill="#1e293b" stroke="#38bdf8" stroke-width="2.5"/>
-                    <!-- 前侧螺旋桨（水平椭圆 + 十字） -->
-                    <ellipse cx="-94" cy="-46" rx="25" ry="7" fill="none" stroke="#7dd3fc" stroke-width="2"/>
-                    <line x1="-94" y1="-63" x2="-94" y2="-29" stroke="#7dd3fc" stroke-width="1.5"/>
-                    <ellipse cx="94" cy="-46" rx="25" ry="7" fill="none" stroke="#7dd3fc" stroke-width="2"/>
-                    <line x1="94" y1="-63" x2="94" y2="-29" stroke="#7dd3fc" stroke-width="1.5"/>
-
-                    <!-- ⑤ 机身（六边形，略带透视梯形） -->
-                    <polygon
-                      points="0,-30 22,-15 22,15 0,30 -22,15 -22,-15"
-                      fill="#0f172a" stroke="#334155" stroke-width="2"
-                    />
-                    <!-- 机身顶面高光（模拟受光面） -->
-                    <polygon
-                      points="0,-30 22,-15 0,-10 -22,-15"
-                      fill="#1e3a5f" opacity="0.6"
-                    />
-                    <!-- 机身内框 -->
-                    <polygon
-                      points="0,-24 16,-12 16,12 0,24 -16,12 -16,-12"
-                      fill="none" stroke="#1e40af" stroke-width="1"
-                    />
-
-                    <!-- ⑥ 机头方向指示（上方箭头） -->
-                    <polygon points="0,-42 -6,-30 6,-30" fill="#38bdf8"/>
-
-                    <!-- ⑦ 中心点 -->
-                    <circle cx="0" cy="0" r="4" fill="#38bdf8" opacity="0.9"/>
-                  </svg>
-                </div>
-              </div>
-
-              <!-- Roll 指示刻度（底部弧线） -->
-              <svg class="roll-arc" viewBox="0 0 300 60" xmlns="http://www.w3.org/2000/svg">
-                <!-- 弧线背景 -->
-                <path d="M 30,55 A 120,120 0 0,1 270,55" fill="none" stroke="#334155" stroke-width="1.5"/>
-                <!-- 刻度：每30° -->
-                <line x1="30" y1="55" x2="36" y2="47" stroke="#64748b" stroke-width="1.5"/>
-                <line x1="78" y1="20" x2="82" y2="13" stroke="#64748b" stroke-width="1.5"/>
-                <line x1="150" y1="10" x2="150" y2="2" stroke="#94a3b8" stroke-width="2"/>
-                <line x1="222" y1="20" x2="218" y2="13" stroke="#64748b" stroke-width="1.5"/>
-                <line x1="270" y1="55" x2="264" y2="47" stroke="#64748b" stroke-width="1.5"/>
-                <!-- Roll 指示针 -->
-                <line
-                  :x1="rollPointer.x1" :y1="rollPointer.y1"
-                  :x2="rollPointer.x2" :y2="rollPointer.y2"
-                  stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"
-                />
-              </svg>
+              <canvas ref="canvasRef" class="model-canvas"></canvas>
+              <div v-if="modelLoadError" class="model-error">{{ modelLoadError }}</div>
             </div>
-
-            <!-- 角度数字显示 -->
             <div class="angle-readout">
               <div class="angle-item">
                 <span class="angle-label">Roll</span>
@@ -247,242 +148,234 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { useSerial } from '@/composables/useSerial'
+import { useGyroInfo } from '@/ts/information/gyroInfo'
+import airplaneModelUrl from '../../model/airplane.gltf?url'
 
-const { getInstance, connectionState } = useSerial()
+const { connectionState } = useSerial()
 
-// ── MAVLink 协议常量 ─────────────────────────────────────────
-const MAV_STX = 0xFE
-const MSG_ID_IMU      = 4
-const MSG_ID_ATTITUDE = 5
-const MSG_ID_COMMAND  = 8
+const {
+  imuData,
+  frameCount,
+  txCount,
+  updatedAt: imuUpdatedAt,
+  frameRate,
+  imuActive,
+  attitudeData,
+  attitudeUpdatedAt,
+  attitudeActive,
+} = useGyroInfo()
 
-const CRC_EXTRA_MAP: Record<number, number> = {
-  [MSG_ID_IMU]:      53,
-  [MSG_ID_ATTITUDE]: 209,
-}
-const CRC_EXTRA_COMMAND = 58
+const rollDeg  = computed(() => attitudeData.value.roll)
+const pitchDeg = computed(() => attitudeData.value.pitch)
+const yawDeg   = computed(() => attitudeData.value.yaw)
 
-const POLL_INTERVAL_MS = 100  // 10 Hz
+// ── Three.js 3D 飞机模型 ──────────────────────────────────────
+const canvasRef = ref<HTMLCanvasElement | null>(null)
+let renderer: THREE.WebGLRenderer | null = null
+let scene: THREE.Scene | null = null
+let camera: THREE.PerspectiveCamera | null = null
+let modelPivot: THREE.Object3D | null = null
+let rafId: number | null = null
+let resizeObserver: ResizeObserver | null = null
+let fallbackMesh: THREE.Mesh | null = null
+const modelLoadError = ref('')
 
-// ── 姿态角度转换 ─────────────────────────────────────────────
-// ATTITUDE 字段为 int16，注释 (-pi..+pi)，代表弧度的定点数
-// 飞控以 centiradians 存储：raw / 100 = 弧度，× (180/π) = 角度（度）
-const CENTI_RAD_TO_DEG = 180 / (Math.PI * 100)
-
-// ── 数据状态 ─────────────────────────────────────────────────
-const imuData      = ref({ xAcc: 0, yAcc: 0, zAcc: 0, xGyro: 0, yGyro: 0, zGyro: 0 })
-const attitudeData = ref({ roll: 0, pitch: 0, yaw: 0 })
-
-const frameCount         = ref(0)
-const imuFrameCount      = ref(0)
-const attitudeFrameCount = ref(0)
-const crcErrorCount      = ref(0)
-const txCount            = ref(0)
-
-const imuUpdatedAt      = ref('')
-const attitudeUpdatedAt = ref('')
-const imuActive         = ref(false)
-const attitudeActive    = ref(false)
-
-const isPolling = ref(false)
-const frameRate = ref(0)
-let   fpsFrames = 0
-
-// ── 姿态换算 → 度数 ──────────────────────────────────────────
-const rollDeg  = computed(() => attitudeData.value.roll  * CENTI_RAD_TO_DEG)
-const pitchDeg = computed(() => attitudeData.value.pitch * CENTI_RAD_TO_DEG)
-const yawDeg   = computed(() => attitudeData.value.yaw   * CENTI_RAD_TO_DEG)
-
-// ── 3D 模型样式 ───────────────────────────────────────────────
-// CSS 旋转顺序：偏航 → 俯仰 → 横滚（Yaw→Pitch→Roll）
-const droneStyle = computed(() => ({
-  transform: `rotateY(${yawDeg.value}deg) rotateX(${-pitchDeg.value}deg) rotateZ(${-rollDeg.value}deg)`,
-  transition: 'transform 0.08s linear',
-}))
-
-// 天地背景：随俯仰上下移动，随横滚旋转（放大避免旋转时露白边）
-const horizonBgStyle = computed(() => {
-  const pitchOffset = Math.max(-45, Math.min(45, pitchDeg.value))
-  return {
-    background: `linear-gradient(to bottom,
-      #050d1f 0%,
-      #0c1a3d ${48 - pitchOffset * 0.6}%,
-      #1a3a1a ${52 - pitchOffset * 0.6}%,
-      #0d1f0d 100%)`,
-    transform: `rotate(${-rollDeg.value}deg) scale(1.6)`,
-    transition: 'background 0.08s linear, transform 0.08s linear',
-  }
-})
-
-// 地平线参考线
-const horizonLineStyle = computed(() => {
-  const pitchOffset = Math.max(-45, Math.min(45, pitchDeg.value))
-  return {
-    transform: `translateY(${-pitchOffset * 1.2}px) rotate(${-rollDeg.value}deg)`,
-    transition: 'transform 0.08s linear',
-  }
-})
-
-// Roll 弧度指示针（SVG 弧线上的指针，弧线中心 = 150,55，半径 120）
-const rollPointer = computed(() => {
-  // 将 roll 映射到弧线角度范围（弧线从 -90° 到 +90°，对应 SVG x: 30~270）
-  const angle = Math.max(-90, Math.min(90, rollDeg.value))
-  // 弧线圆心在 (150, 55+120=175)（弧向上），角度 0 = 正上方
-  const rad = ((angle - 90) * Math.PI) / 180
-  const cx = 150, cy = 175, r = 120
-  const tip = { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
-  const base = { x: cx + (r - 14) * Math.cos(rad), y: cy + (r - 14) * Math.sin(rad) }
-  return { x1: base.x, y1: base.y, x2: tip.x, y2: tip.y }
-})
-
-// ── 定时器句柄 ───────────────────────────────────────────────
-let pollTimerId: ReturnType<typeof setInterval> | null = null
-let fpsTimerId:  ReturnType<typeof setInterval> | null = null
-
-// ── 字节缓冲区 ───────────────────────────────────────────────
-let rxBuf = new Uint8Array(1024)
-let rxLen = 0
-let txSeq = 0
-
-// ── MAVLink X25 CRC ──────────────────────────────────────────
-function crcAccumulate(byte: number, crc: number): number {
-  let tmp = (byte ^ (crc & 0xFF)) & 0xFF
-  tmp ^= (tmp << 4) & 0xFF
-  return (((crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)) & 0xFFFF)
+function hasRenderableMesh(object: THREE.Object3D) {
+  let meshCount = 0
+  object.traverse((node) => {
+    if ((node as THREE.Mesh).isMesh) meshCount += 1
+  })
+  return meshCount > 0
 }
 
-function calcCrc(buf: Uint8Array, start: number, end: number, extra: number): number {
-  let crc = 0xFFFF
-  for (let i = start; i < end; i++) crc = crcAccumulate(buf[i]!, crc)
-  return crcAccumulate(extra, crc)
-}
+function normalizeModelForPreview(object: THREE.Object3D) {
+  object.traverse((node) => {
+    if (!(node as THREE.Mesh).isMesh) return
+    const mesh = node as THREE.Mesh
+    mesh.frustumCulled = false
 
-// ── MAVLink v1 帧构建 ─────────────────────────────────────────
-function buildMavFrame(msgid: number, payload: Uint8Array, crcExtra: number): Uint8Array {
-  const frame = new Uint8Array(payload.length + 8)
-  frame[0] = MAV_STX
-  frame[1] = payload.length
-  frame[2] = txSeq++ & 0xFF
-  frame[3] = 0; frame[4] = 0; frame[5] = msgid
-  frame.set(payload, 6)
-  const crc = calcCrc(frame, 1, 6 + payload.length, crcExtra)
-  frame[6 + payload.length] = crc & 0xFF
-  frame[7 + payload.length] = (crc >> 8) & 0xFF
-  return frame
-}
-
-function buildQueryFrame(requestMsgId: number): Uint8Array {
-  const payload = new Uint8Array(11)
-  const view = new DataView(payload.buffer)
-  view.setFloat32(0, 0, true)
-  view.setFloat32(4, 0, true)
-  view.setUint16(8, requestMsgId, true)
-  view.setUint8(10, 0)
-  return buildMavFrame(MSG_ID_COMMAND, payload, CRC_EXTRA_COMMAND)
-}
-
-// ── 轮询控制 ─────────────────────────────────────────────────
-function startPolling() {
-  if (isPolling.value) return
-  isPolling.value = true
-  fpsFrames = 0; frameRate.value = 0
-
-  pollTimerId = setInterval(async () => {
-    const serial = getInstance()
-    if (!serial.getConnected()) return
-    await serial.send(buildQueryFrame(MSG_ID_IMU))
-    txCount.value++
-  }, POLL_INTERVAL_MS)
-
-  fpsTimerId = setInterval(() => { frameRate.value = fpsFrames; fpsFrames = 0 }, 1000)
-}
-
-function stopPolling() {
-  isPolling.value = false
-  if (pollTimerId !== null) { clearInterval(pollTimerId); pollTimerId = null }
-  if (fpsTimerId  !== null) { clearInterval(fpsTimerId);  fpsTimerId  = null }
-  frameRate.value = 0
-}
-
-// ── MAVLink 帧解析 ────────────────────────────────────────────
-function readFloat32LE(buf: Uint8Array, offset: number): number {
-  return new DataView(buf.buffer, buf.byteOffset + offset, 4).getFloat32(0, true)
-}
-
-function readInt16LE(buf: Uint8Array, offset: number): number {
-  return new DataView(buf.buffer, buf.byteOffset + offset, 2).getInt16(0, true)
-}
-
-function processBuffer() {
-  let i = 0
-  while (i < rxLen) {
-    if (rxBuf[i] !== MAV_STX) { i++; continue }
-    if (i + 6 > rxLen) break
-
-    const pLen    = rxBuf[i + 1]!
-    const fLen    = pLen + 8
-    if (i + fLen > rxLen) break
-
-    const msgid = rxBuf[i + 5]!
-    if (CRC_EXTRA_MAP[msgid] !== undefined) {
-      const crc = calcCrc(rxBuf, i + 1, i + 6 + pLen, CRC_EXTRA_MAP[msgid]!)
-      if (rxBuf[i + 6 + pLen] === (crc & 0xFF) && rxBuf[i + 7 + pLen] === ((crc >> 8) & 0xFF)) {
-        const payload = rxBuf.slice(i + 6, i + 6 + pLen)
-        frameCount.value++; fpsFrames++
-        if (msgid === MSG_ID_IMU)      parseImu(payload)
-        if (msgid === MSG_ID_ATTITUDE) parseAttitude(payload)
-      } else {
-        crcErrorCount.value++
-      }
+    const applyMaterialSettings = (mat: THREE.Material) => {
+      mat.side = THREE.DoubleSide
+      mat.needsUpdate = true
     }
-    i += fLen
+
+    if (Array.isArray(mesh.material)) {
+      mesh.material.forEach(applyMaterialSettings)
+    } else if (mesh.material) {
+      applyMaterialSettings(mesh.material)
+    }
+  })
+}
+
+function updateModelRotation() {
+  if (!modelPivot) return
+  const toRad = THREE.MathUtils.degToRad
+  // YXZ Euler order: 偏航(Y) → 俯仰(X) → 横滚(Z)
+  modelPivot.rotation.set(
+    toRad(pitchDeg.value),
+    toRad(yawDeg.value),
+    toRad(-rollDeg.value),
+    'YXZ',
+  )
+}
+
+watch([rollDeg, pitchDeg, yawDeg], updateModelRotation)
+
+function fitCameraToSceneObject(object: THREE.Object3D) {
+  if (!camera) return
+  const box = new THREE.Box3().setFromObject(object)
+  const center = box.getCenter(new THREE.Vector3())
+  const sphere = box.getBoundingSphere(new THREE.Sphere())
+  const radius = Math.max(sphere.radius, 0.5)
+
+  object.position.sub(center)
+
+  const fovRad = THREE.MathUtils.degToRad(camera.fov)
+  const distance = (radius / Math.sin(fovRad / 2)) * 1.15
+  camera.near = Math.max(0.01, distance / 200)
+  camera.far = distance * 200
+  camera.position.set(0, radius * 0.35, distance)
+  camera.lookAt(0, 0, 0)
+  camera.updateProjectionMatrix()
+}
+
+function showFallbackModel() {
+  if (!scene || modelPivot) return
+  const geometry = new THREE.ConeGeometry(0.6, 2.0, 16)
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    metalness: 0.2,
+    roughness: 0.45,
+  })
+  fallbackMesh = new THREE.Mesh(geometry, material)
+  fallbackMesh.rotation.x = Math.PI / 2
+
+  modelPivot = new THREE.Object3D()
+  modelPivot.add(fallbackMesh)
+  scene.add(modelPivot)
+  fitCameraToSceneObject(modelPivot)
+  updateModelRotation()
+}
+
+function initThree() {
+  const canvas = canvasRef.value
+  if (!canvas) return
+
+  const wrapper = canvas.parentElement!
+  const w = wrapper.clientWidth || 320
+  const h = wrapper.clientHeight || 320
+
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  renderer.setSize(w, h)
+  renderer.outputColorSpace = THREE.SRGBColorSpace
+
+  scene = new THREE.Scene()
+
+  camera = new THREE.PerspectiveCamera(40, w / h, 0.01, 1000)
+  camera.position.set(0, 1, 8)
+  camera.lookAt(0, 0, 0)
+
+  scene.add(new THREE.AmbientLight(0xffffff, 1.2))
+  const sun = new THREE.DirectionalLight(0xffffff, 2.0)
+  sun.position.set(5, 8, 6)
+  scene.add(sun)
+  const fill = new THREE.DirectionalLight(0x8899cc, 0.6)
+  fill.position.set(-4, -2, -4)
+  scene.add(fill)
+
+  modelLoadError.value = ''
+  showFallbackModel()
+
+  const loader = new GLTFLoader()
+  loader.load(airplaneModelUrl, (gltf) => {
+    if (!scene) return
+    const gltfScene = gltf.scene
+
+    if (!hasRenderableMesh(gltfScene)) {
+      modelLoadError.value = '模型中未找到可渲染网格，已使用回退模型'
+      return
+    }
+
+    // 修正初始朝向：机头朝前（+Z），绕 X 轴旋转 -90°
+    //gltfScene.rotation.x = Math.PI
+    gltfScene.rotation.y = Math.PI
+    normalizeModelForPreview(gltfScene)
+
+    // 成功加载后移除回退模型
+    if (modelPivot) {
+      scene.remove(modelPivot)
+      modelPivot.traverse((obj) => {
+        if ((obj as THREE.Mesh).isMesh) {
+          const m = obj as THREE.Mesh
+          m.geometry?.dispose?.()
+          if (Array.isArray(m.material)) {
+            m.material.forEach((mat) => mat.dispose?.())
+          } else {
+            m.material?.dispose?.()
+          }
+        }
+      })
+      modelPivot = null
+      fallbackMesh = null
+    }
+
+    modelPivot = new THREE.Object3D()
+    modelPivot.add(gltfScene)
+    scene.add(modelPivot)
+
+    fitCameraToSceneObject(modelPivot)
+
+    updateModelRotation()
+  }, undefined, (error) => {
+    console.error('[Gyro] airplane.gltf load failed:', error)
+    modelLoadError.value = '模型加载失败，请检查 model/airplane.gltf 文件'
+  })
+
+  resizeObserver = new ResizeObserver(() => {
+    if (!renderer || !camera) return
+    const nw = wrapper.clientWidth
+    const nh = wrapper.clientHeight
+    if (nw > 0 && nh > 0) {
+      renderer.setSize(nw, nh)
+      camera.aspect = nw / nh
+      camera.updateProjectionMatrix()
+    }
+  })
+  resizeObserver.observe(wrapper)
+
+  const renderLoop = () => {
+    rafId = requestAnimationFrame(renderLoop)
+    try {
+      renderer?.render(scene!, camera!)
+    } catch (error) {
+      console.error('[Gyro] render failed:', error)
+      modelLoadError.value = '模型渲染失败，请检查模型格式或材质设置'
+    }
   }
-  if (i > 0 && i < rxLen) { rxBuf.copyWithin(0, i, rxLen); rxLen -= i }
-  else if (i >= rxLen) { rxLen = 0 }
+  renderLoop()
 }
 
-function parseImu(p: Uint8Array) {
-  imuData.value = {
-    xAcc: readFloat32LE(p, 0), yAcc: readFloat32LE(p, 4), zAcc: readFloat32LE(p, 8),
-    xGyro: readFloat32LE(p, 12), yGyro: readFloat32LE(p, 16), zGyro: readFloat32LE(p, 20),
-  }
-  imuUpdatedAt.value = timestamp(); imuFrameCount.value++; flashActive(imuActive)
+function disposeThree() {
+  if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
+  resizeObserver?.disconnect(); resizeObserver = null
+  renderer?.dispose(); renderer = null
+  modelLoadError.value = ''
+  fallbackMesh = null
+  scene = null; camera = null; modelPivot = null
 }
 
-function parseAttitude(p: Uint8Array) {
-  attitudeData.value = { roll: readInt16LE(p, 0), pitch: readInt16LE(p, 2), yaw: readInt16LE(p, 4) }
-  attitudeUpdatedAt.value = timestamp(); attitudeFrameCount.value++; flashActive(attitudeActive)
-}
-
-function handleData(event: any) {
-  const chunk: Uint8Array = event.data
-  if (!chunk?.length) return
-  if (rxLen + chunk.length > rxBuf.length) {
-    const next = new Uint8Array(Math.max(rxBuf.length * 2, rxLen + chunk.length))
-    next.set(rxBuf.subarray(0, rxLen)); rxBuf = next
-  }
-  rxBuf.set(chunk, rxLen); rxLen += chunk.length; processBuffer()
-}
-
-// ── 工具 ─────────────────────────────────────────────────────
-function timestamp() { return new Date().toLocaleTimeString('zh-CN', { hour12: false }) }
-
-const flashTimers = new Map<object, ReturnType<typeof setTimeout>>()
-function flashActive(flag: { value: boolean }) {
-  const t = flashTimers.get(flag); if (t) clearTimeout(t)
-  flag.value = true
-  flashTimers.set(flag, setTimeout(() => { flag.value = false }, 300))
-}
-
-// ── 生命周期 ─────────────────────────────────────────────────
-onMounted(() => { getInstance().addEventListener('data', handleData) })
-onUnmounted(() => {
-  stopPolling()
-  getInstance().removeEventListener('data', handleData)
-  flashTimers.forEach(t => clearTimeout(t)); flashTimers.clear()
+// canvas 出现时（连接后）自动初始化，消失时自动释放资源
+watch(canvasRef, (canvas) => {
+  if (canvas) { nextTick(initThree) }
+  else { disposeThree() }
 })
+
+onUnmounted(disposeThree)
 </script>
 
 <style scoped>
@@ -547,14 +440,6 @@ onUnmounted(() => {
   padding-right: var(--spacing-sm);
 }
 
-/* 右侧模型列 */
-.model-col {
-  width: 320px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-}
-
 /* ── 数据面板 ────────────────────────────────────────────── */
 .panel {
   border-radius: 0;
@@ -574,18 +459,21 @@ onUnmounted(() => {
 .panel-header h2 { margin: 0; }
 .updated-at { font-size: var(--font-size-sm); color: var(--text-disabled); font-family: 'Consolas', monospace; }
 
-.data-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-sm); }
+.data-grid { display: grid; grid-template-columns: repeat(3, 120px); gap: var(--spacing-sm); }
 .data-card {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: var(--spacing-md);
   background-color: var(--surface-100); border: 1px solid var(--border-light);
   transition: border-color 0.15s, background-color 0.15s;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 .data-card--active { border-color: var(--primary-500); }
 .data-label { font-size: 11px; color: var(--text-disabled); text-align: center; }
 .data-value {
   font-size: 18px; font-weight: 700; color: var(--primary-500);
   font-family: 'Consolas', 'Courier New', monospace;
+  white-space: nowrap;
 }
 .data-unit { font-size: 11px; color: var(--text-disabled); font-family: 'Consolas', monospace; }
 
@@ -594,109 +482,85 @@ onUnmounted(() => {
 .stat-item { font-size: var(--font-size-sm); color: var(--text-disabled); }
 .stat-item strong { color: var(--text-primary); font-family: 'Consolas', monospace; }
 
-/* ── 3D 模型卡片 ──────────────────────────────────────────── */
-.model-card {
-  background-color: var(--surface-950);
-  border: 1px solid var(--surface-800);
+/* ── 右侧模型列 ──────────────────────────────────────────── */
+.model-col {
+  width: 340px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 420px;
+  justify-content: flex-start;
+}
+
+.model-card {
+  display: flex;
+  flex-direction: column;
+  height: 50%;
+  min-height: 280px;
+  background: linear-gradient(180deg, #ffffff 0%, #eef6ff 52%, #dcecff 100%);
+  border: 1px solid var(--primary-500);
   overflow: hidden;
 }
 
-.model-title {
-  padding: var(--spacing-sm) var(--spacing-md);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--surface-400);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  border-bottom: 1px solid var(--surface-800);
+.model-header {
+  padding: var(--spacing-sm) 0 var(--spacing-sm) var(--spacing-md);
+  margin-bottom: 0;
+  background: transparent;
   flex-shrink: 0;
 }
+.model-header h2 {
+  margin: 0;
+}
 
-/* 3D 场景容器 */
 .scene-wrapper {
   flex: 1;
   position: relative;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 280px;
+  min-height: 150px;
+  background: #ffffff;
 }
 
-/* 天地背景 */
-.horizon-bg {
+.model-canvas {
   position: absolute;
-  inset: -60%;
-  border-radius: 0;
-  pointer-events: none;
-}
-
-/* 地平线参考线 */
-.horizon-line {
-  position: absolute;
-  left: 0; right: 0;
-  height: 1px;
-  background: rgba(148, 163, 184, 0.35);
-  pointer-events: none;
-  transform-origin: center center;
-}
-
-/* CSS 3D 透视场景 */
-.scene {
-  position: relative;
-  width: 260px;
-  height: 260px;
-  perspective: 600px;
-  perspective-origin: 50% 50%;
-  display: flex; align-items: center; justify-content: center;
-}
-
-.drone-pivot {
-  width: 230px;
-  height: 230px;
-  transform-style: preserve-3d;
-  display: flex; align-items: center; justify-content: center;
-  filter: drop-shadow(0 4px 16px rgba(56, 189, 248, 0.25));
-}
-
-.drone-svg {
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
+  display: block;
 }
 
-/* Roll 弧度指示 */
-.roll-arc {
+.model-error {
   position: absolute;
-  bottom: 6px;
   left: 50%;
+  bottom: 12px;
   transform: translateX(-50%);
-  width: 200px;
-  height: 40px;
-  pointer-events: none;
+  padding: 4px 10px;
+  border: 1px solid #ef4444;
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.82);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
-/* 角度数字显示 */
 .angle-readout {
   display: flex;
   justify-content: space-around;
   align-items: center;
   padding: var(--spacing-sm) var(--spacing-md);
-  border-top: 1px solid var(--surface-800);
+  border-top: 1px solid var(--primary-500);
   flex-shrink: 0;
-  background-color: var(--surface-900);
+  background-color: #f3f9ff;
 }
 
 .angle-item {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
 .angle-label {
   font-size: 10px;
-  color: var(--surface-500);
+  color: #5b8bc2;
   text-transform: uppercase;
   letter-spacing: 0.6px;
 }
@@ -704,17 +568,18 @@ onUnmounted(() => {
 .angle-val {
   font-size: 18px;
   font-weight: 700;
-  color: var(--surface-300);
+  color: var(--primary-500);
   font-family: 'Consolas', 'Courier New', monospace;
   transition: color 0.15s;
   min-width: 70px;
   text-align: center;
 }
 
-.angle-val--active { color: #38bdf8; }
+.angle-val--active { color: #1e88ff; }
 
 .angle-divider {
-  width: 1px; height: 32px;
-  background-color: var(--surface-800);
+  width: 1px;
+  height: 32px;
+  background-color: var(--primary-500);
 }
 </style>

@@ -1,24 +1,11 @@
 <template>
-    <!-- 已连接时显示飞控信息 -->
-    <!-- <template v-if="isConnected">
-      <div class="fc-info-chip">
-        <span class="fc-version">
-          v{{ fcInfo.majorVersion }}.{{ fcInfo.minorVersion }}.{{ fcInfo.patchVersion }}
-        </span>
-        <span class="fc-divider">|</span>
-        <span class="fc-target">{{ fcInfo.targetName }}</span>
-      </div>
-    </template> -->
-
   <div class="serial-header">
     <!-- 连接状态指示器（圆点 + 文本） -->
     <div class="status-indicator" :class="{ connected: isConnected }">
       <span class="status-dot"></span>
       <span class="status-text">{{ isConnected ? '已连接' : '未连接' }}</span>
     </div>
-
-
-
+    
     <!-- 未连接时显示波特率选择 + 连接按钮 -->
     <template v-if="!isConnected">
       <select v-model.number="selectedBaudRate" class="baud-select" title="波特率">
@@ -44,7 +31,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useSerial, DEFAULT_BAUD_RATES } from '@/composables/useSerial'
-import { useFCInfo } from '@/composables/useFCInfo'
+import { useFCInfo } from '@/ts/information/fcInfo'
 
 const emit = defineEmits<{
   connected: [port: string]

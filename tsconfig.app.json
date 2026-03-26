@@ -6,6 +6,9 @@
     // Extra safety for array and object lookups, but may have false positives.
     "noUncheckedIndexedAccess": true,
 
+    // Allow @types/three to be resolved (base config sets types:[] to block Node types)
+    "types": ["three"],
+
     // Path mapping for cleaner imports.
     "paths": {
       "@/*": ["./src/*"]

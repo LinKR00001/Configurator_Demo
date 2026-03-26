@@ -126,61 +126,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import { useSerial } from '@/composables/useSerial'
+import { useReceiverInfo } from '@/ts/information/receiverInfo'
 
 const { getInstance, connectionState } = useSerial()
+const {
+  mainChannels,
+  auxChannels,
+  rcCount,
+  rssi,
+  frameCount,
+  txCount,
+  updatedAt,
+  isPolling,
+  frameRate,
+} = useReceiverInfo()
 
-// ── MAVLink 协议常量 ─────────────────────────────────────────
-const MAV_STX            = 0xFE
-const MSG_ID_RC_CHANNELS = 7
-const CRC_EXTRA_RC       = 45
-const MSG_ID_COMMAND     = 8
-const CRC_EXTRA_COMMAND  = 58
-const MSG_ID_BIND        = 5
-
-const POLL_INTERVAL_MS = 100  // 10 Hz
-
-// RC 标准值域（PWM μs）
 const RC_MIN = 1000
 const RC_MAX = 2000
-const RC_MID = 1500
-
-// 通道名称
-const CHANNEL_NAMES = [
-  'Roll', 'Pitch', 'Yaw', 'Throttle',
-  'AUX1', 'AUX2', 'AUX3', 'AUX4',
-  'AUX5', 'AUX6', 'AUX7', 'AUX8',
-]
-
-// ── 数据状态 ─────────────────────────────────────────────────
-interface Channel {
-  index:  number
-  name:   string
-  value:  number
-  active: boolean
-}
-
-const channels = ref<Channel[]>(
-  Array.from({ length: 12 }, (_, i) => ({
-    index:  i + 1,
-    name:   CHANNEL_NAMES[i]!,
-    value:  RC_MID,
-    active: false,
-  }))
-)
-
-const mainChannels = computed(() => channels.value.slice(0, 4))
-const auxChannels = computed(() => channels.value.slice(4, 12))
-
-const rcCount    = ref(0)
-const rssi       = ref(255)
-const frameCount = ref(0)
-const txCount    = ref(0)
-const updatedAt  = ref('')
-const isPolling  = ref(false)
-const frameRate  = ref(0)
-let   fpsFrames  = 0
 
 // ── RSSI 显示 ────────────────────────────────────────────────
 const rssiText = computed(() => {
@@ -226,150 +190,7 @@ function startBind() {
   const serial = getInstance()
   if (!serial.getConnected()) return
 
-  // 构建对频帧
-  const payload = new Uint8Array(11)
-  const view = new DataView(payload.buffer)
-  view.setFloat32(0, 0, true)
-  view.setFloat32(4, 0, true)
-  view.setUint16(8, MSG_ID_BIND, true)
-  view.setUint8(10, 0)
-
-  const frame = buildMavFrame(MSG_ID_COMMAND, payload, CRC_EXTRA_COMMAND)
-  serial.send(frame)
-  txCount.value++
-  updatedAt.value = timestamp()
 }
-
-// ── 定时器句柄 ───────────────────────────────────────────────
-let pollTimerId: ReturnType<typeof setInterval> | null = null
-let fpsTimerId:  ReturnType<typeof setInterval> | null = null
-
-// ── 字节缓冲区 ───────────────────────────────────────────────
-let rxBuf = new Uint8Array(512)
-let rxLen = 0
-let txSeq = 0
-
-// ── MAVLink X25 CRC ─────────────────────────────────────────
-function crcAccumulate(byte: number, crc: number): number {
-  let tmp = (byte ^ (crc & 0xFF)) & 0xFF
-  tmp ^= (tmp << 4) & 0xFF
-  return (((crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)) & 0xFFFF)
-}
-
-function calcCrc(buf: Uint8Array, start: number, end: number, extra: number): number {
-  let crc = 0xFFFF
-  for (let i = start; i < end; i++) crc = crcAccumulate(buf[i]!, crc)
-  return crcAccumulate(extra, crc)
-}
-
-// ── MAVLink v1 帧构建 ─────────────────────────────────────────
-function buildMavFrame(msgid: number, payload: Uint8Array, crcExtra: number): Uint8Array {
-  const frame = new Uint8Array(payload.length + 8)
-  frame[0] = MAV_STX; frame[1] = payload.length
-  frame[2] = txSeq++ & 0xFF; frame[3] = 0; frame[4] = 0; frame[5] = msgid
-  frame.set(payload, 6)
-  const crc = calcCrc(frame, 1, 6 + payload.length, crcExtra)
-  frame[6 + payload.length] = crc & 0xFF
-  frame[7 + payload.length] = (crc >> 8) & 0xFF
-  return frame
-}
-
-function buildQueryFrame(requestMsgId: number): Uint8Array {
-  const payload = new Uint8Array(11)
-  const view = new DataView(payload.buffer)
-  view.setFloat32(0, 0, true); view.setFloat32(4, 0, true)
-  view.setUint16(8, requestMsgId, true); view.setUint8(10, 0)
-  return buildMavFrame(MSG_ID_COMMAND, payload, CRC_EXTRA_COMMAND)
-}
-
-// ── 轮询控制 ─────────────────────────────────────────────────
-function startPolling() {
-  if (isPolling.value) return
-  isPolling.value = true; fpsFrames = 0; frameRate.value = 0
-
-  pollTimerId = setInterval(async () => {
-    const serial = getInstance()
-    if (!serial.getConnected()) return
-    await serial.send(buildQueryFrame(MSG_ID_RC_CHANNELS))
-    txCount.value++
-  }, POLL_INTERVAL_MS)
-
-  fpsTimerId = setInterval(() => { frameRate.value = fpsFrames; fpsFrames = 0 }, 1000)
-}
-
-function stopPolling() {
-  isPolling.value = false
-  if (pollTimerId !== null) { clearInterval(pollTimerId); pollTimerId = null }
-  if (fpsTimerId  !== null) { clearInterval(fpsTimerId);  fpsTimerId  = null }
-  frameRate.value = 0
-}
-
-// ── MAVLink 帧解析 ────────────────────────────────────────────
-function readInt16LE(buf: Uint8Array, offset: number): number {
-  return new DataView(buf.buffer, buf.byteOffset + offset, 2).getInt16(0, true)
-}
-
-function parseRcChannels(payload: Uint8Array) {
-  const flashTimers_local: ReturnType<typeof setTimeout>[] = []
-  for (let i = 0; i < 12; i++) {
-    const val = readInt16LE(payload, i * 2)
-    const ch  = channels.value[i]!
-    const changed = ch.value !== val
-    ch.value = val
-    if (changed) {
-      ch.active = true
-      flashTimers_local.push(setTimeout(() => { ch.active = false }, 300))
-    }
-  }
-  rcCount.value   = payload[24]!
-  rssi.value      = payload[25]!
-  frameCount.value++
-  fpsFrames++
-  updatedAt.value = timestamp()
-}
-
-function processBuffer() {
-  let i = 0
-  while (i < rxLen) {
-    if (rxBuf[i] !== MAV_STX) { i++; continue }
-    if (i + 6 > rxLen) break
-
-    const pLen = rxBuf[i + 1]!
-    const fLen = pLen + 8
-    if (i + fLen > rxLen) break
-
-    if (rxBuf[i + 5] === MSG_ID_RC_CHANNELS) {
-      const crc = calcCrc(rxBuf, i + 1, i + 6 + pLen, CRC_EXTRA_RC)
-      if (rxBuf[i + 6 + pLen] === (crc & 0xFF) && rxBuf[i + 7 + pLen] === ((crc >> 8) & 0xFF)) {
-        parseRcChannels(rxBuf.slice(i + 6, i + 6 + pLen))
-      }
-    }
-    i += fLen
-  }
-  if (i > 0 && i < rxLen) { rxBuf.copyWithin(0, i, rxLen); rxLen -= i }
-  else if (i >= rxLen) rxLen = 0
-}
-
-function handleData(event: any) {
-  const chunk: Uint8Array = event.data
-  if (!chunk?.length) return
-  if (rxLen + chunk.length > rxBuf.length) {
-    const next = new Uint8Array(Math.max(rxBuf.length * 2, rxLen + chunk.length))
-    next.set(rxBuf.subarray(0, rxLen)); rxBuf = next
-  }
-  rxBuf.set(chunk, rxLen); rxLen += chunk.length; processBuffer()
-}
-
-function timestamp() { return new Date().toLocaleTimeString('zh-CN', { hour12: false }) }
-
-onMounted(() => {
-  getInstance().addEventListener('data', handleData)
-  startPolling()
-})
-onUnmounted(() => {
-  stopPolling()
-  getInstance().removeEventListener('data', handleData)
-})
 </script>
 
 <style scoped>
