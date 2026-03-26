@@ -184,6 +184,33 @@ let resizeObserver: ResizeObserver | null = null
 let fallbackMesh: THREE.Mesh | null = null
 const modelLoadError = ref('')
 
+function hasRenderableMesh(object: THREE.Object3D) {
+  let meshCount = 0
+  object.traverse((node) => {
+    if ((node as THREE.Mesh).isMesh) meshCount += 1
+  })
+  return meshCount > 0
+}
+
+function normalizeModelForPreview(object: THREE.Object3D) {
+  object.traverse((node) => {
+    if (!(node as THREE.Mesh).isMesh) return
+    const mesh = node as THREE.Mesh
+    mesh.frustumCulled = false
+
+    const applyMaterialSettings = (mat: THREE.Material) => {
+      mat.side = THREE.DoubleSide
+      mat.needsUpdate = true
+    }
+
+    if (Array.isArray(mesh.material)) {
+      mesh.material.forEach(applyMaterialSettings)
+    } else if (mesh.material) {
+      applyMaterialSettings(mesh.material)
+    }
+  })
+}
+
 function updateModelRotation() {
   if (!modelPivot) return
   const toRad = THREE.MathUtils.degToRad
@@ -269,8 +296,15 @@ function initThree() {
     if (!scene) return
     const gltfScene = gltf.scene
 
+    if (!hasRenderableMesh(gltfScene)) {
+      modelLoadError.value = '模型中未找到可渲染网格，已使用回退模型'
+      return
+    }
+
     // 修正初始朝向：机头朝前（+Z），绕 X 轴旋转 -90°
-    gltfScene.rotation.x = -Math.PI / 2
+    //gltfScene.rotation.x = Math.PI
+    gltfScene.rotation.y = Math.PI
+    normalizeModelForPreview(gltfScene)
 
     // 成功加载后移除回退模型
     if (modelPivot) {
@@ -316,7 +350,12 @@ function initThree() {
 
   const renderLoop = () => {
     rafId = requestAnimationFrame(renderLoop)
-    renderer!.render(scene!, camera!)
+    try {
+      renderer?.render(scene!, camera!)
+    } catch (error) {
+      console.error('[Gyro] render failed:', error)
+      modelLoadError.value = '模型渲染失败，请检查模型格式或材质设置'
+    }
   }
   renderLoop()
 }
@@ -420,7 +459,7 @@ onUnmounted(disposeThree)
 .panel-header h2 { margin: 0; }
 .updated-at { font-size: var(--font-size-sm); color: var(--text-disabled); font-family: 'Consolas', monospace; }
 
-.data-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--spacing-sm); }
+.data-grid { display: grid; grid-template-columns: repeat(3, 120px); gap: var(--spacing-sm); }
 .data-card {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: var(--spacing-md);
@@ -456,7 +495,7 @@ onUnmounted(disposeThree)
   display: flex;
   flex-direction: column;
   height: 50%;
-  min-height: 220px;
+  min-height: 280px;
   background: linear-gradient(180deg, #ffffff 0%, #eef6ff 52%, #dcecff 100%);
   border: 1px solid var(--primary-500);
   overflow: hidden;
@@ -476,8 +515,8 @@ onUnmounted(disposeThree)
   flex: 1;
   position: relative;
   overflow: hidden;
-  min-height: 140px;
-  background: linear-gradient(180deg, #ffffff 0%, #ecf5ff 50%, #d9ecff 100%);
+  min-height: 150px;
+  background: #ffffff;
 }
 
 .model-canvas {
