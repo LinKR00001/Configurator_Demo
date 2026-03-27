@@ -19,7 +19,7 @@ import Receiver from './components/receiver.vue';
         <a 
           href="#"
           @click.prevent="selectItem('message')"
-          :class="{ active: activeItem === 'message' }"
+          :class="{ active: activeItem === 'message', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">飞控信息</span>
@@ -30,7 +30,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('gyro')"
-          :class="{ active: activeItem === 'gyro' }"
+          :class="{ active: activeItem === 'gyro', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">陀螺仪</span>
@@ -41,7 +41,7 @@ import Receiver from './components/receiver.vue';
         <a 
           href="#"
           @click.prevent="selectItem('receiver')"
-          :class="{ active: activeItem === 'receiver' }"
+          :class="{ active: activeItem === 'receiver', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">接收机</span>
@@ -52,7 +52,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('pid')"
-          :class="{ active: activeItem === 'pid' }"
+          :class="{ active: activeItem === 'pid', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">PID调校</span>
@@ -63,7 +63,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('rate')"
-          :class="{ active: activeItem === 'rate' }"
+          :class="{ active: activeItem === 'rate', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">RATE设置</span>
@@ -74,7 +74,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('sensor')"
-          :class="{ active: activeItem === 'sensor' }"
+          :class="{ active: activeItem === 'sensor', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">传感器数据</span>
@@ -85,7 +85,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('motorTest')"
-          :class="{ active: activeItem === 'motorTest' }"
+          :class="{ active: activeItem === 'motorTest', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">电机测试</span>
@@ -95,7 +95,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('firmware')"
-          :class="{ active: activeItem === 'firmware' }"
+          :class="{ active: activeItem === 'firmware', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">固件升级</span>
@@ -106,7 +106,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('devSerial')"
-          :class="{ active: activeItem === 'devSerial' }"
+          :class="{ active: activeItem === 'devSerial', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">开发调试</span>
@@ -122,10 +122,14 @@ import Receiver from './components/receiver.vue';
 </template>
 
 <script setup lang="ts">
-defineProps({
+const props = defineProps({
   activeItem: {
     type: String,
     default: 'welcome'
+  },
+  isConnected: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -134,6 +138,7 @@ const emit = defineEmits<{
 }>()
 
 const selectItem = (item: string) => {
+  if (!props.isConnected && item !== 'welcome') return
   emit('select', item)
 }
 </script>
@@ -194,6 +199,12 @@ const selectItem = (item: string) => {
     .nav-icon {
       transform: scale(1.2);
     }
+  }
+
+  &.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
   }
 }
 

@@ -30,7 +30,7 @@ const activePage = ref<PageType>('welcome')
 const currentComponent = ref(shallowRef(welcome));
 
 // 获取串口实例（状态由 useSerial 内部自动管理）
-useSerial()
+const { connectionState } = useSerial()
 
 const handleSidebarSelect = (item: string) => {
   activePage.value = item as PageType
@@ -84,7 +84,9 @@ const handleSerialConnected = (_port: string) => {
  * 串口断开连接时的处理
  */
 const handleSerialDisconnected = () => {
-  // 连接状态已由 useSerial 内部管理，无需额外操作
+  // 断连后回到欢迎页，避免停留在需要串口的模块
+  activePage.value = 'welcome'
+  currentComponent.value = welcome
 }
 
 /**
@@ -116,6 +118,7 @@ const handleSerialError = (error: string) => {
       <!-- 左侧边栏 -->
       <Sidebar 
         :activeItem="activePage"
+        :isConnected="connectionState.isConnected"
         @select="handleSidebarSelect"
       />
 

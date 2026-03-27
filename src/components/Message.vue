@@ -19,6 +19,23 @@
     </div>
 
     <template v-else>
+      <div class="activation-card">
+        <div class="activation-info">
+          <span class="activation-label">激活状态</span>
+          <span :class="['activation-badge', isActivated ? 'active' : 'inactive']">
+            {{ isActivated ? '已激活' : '未激活' }}
+          </span>
+        </div>
+        <button
+          class="activate-btn"
+          type="button"
+          :disabled="isActivated || !isConnected"
+          @click="activateModule"
+        >
+          {{ isActivated ? '已激活' : '激活' }}
+        </button>
+      </div>
+
       <!-- 飞控信息面板 -->
       <div class="panel">
         <div class="panel-header">
@@ -57,9 +74,18 @@ const serialManager = getInstance()
 const { fcInfo, requestMspFcVersionOnce } = useFCInfo()
 
 const isConnected = ref(serialManager.getConnected())
+const isActivated = ref(false)
 
 const handleConnected = () => { isConnected.value = true }
-const handleDisconnected = () => { isConnected.value = false }
+const handleDisconnected = () => {
+  isConnected.value = false
+  isActivated.value = false
+}
+
+const activateModule = () => {
+  if (!isConnected.value) return
+  isActivated.value = true
+}
 
 onMounted(() => {
   isConnected.value = serialManager.getConnected()
@@ -115,6 +141,67 @@ onUnmounted(() => {
   font-size: var(--font-size-sm);
   color: var(--text-disabled);
   margin: 0;
+}
+
+.activation-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border: 1px solid var(--border-light);
+  background-color: var(--surface-100);
+}
+
+.activation-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.activation-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-disabled);
+  font-weight: 600;
+}
+
+.activation-badge {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.activation-badge.active {
+  background-color: rgba(34, 197, 94, 0.16);
+  color: var(--success-600);
+}
+
+.activation-badge.inactive {
+  background-color: var(--surface-200);
+  color: var(--text-disabled);
+}
+
+.activate-btn {
+  border: none;
+  background-color: var(--primary-500);
+  color: var(--text-on-primary);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.activate-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.activate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* 面板覆盖：扁平化 */
