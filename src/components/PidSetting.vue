@@ -30,6 +30,14 @@
           设置
         </button>
 
+        <button
+          v-if="connectionState.isConnected"
+          :class="['btn-sm', 'btn-danger']"
+          @click="resetPidOnce"
+        >
+          恢复默认
+        </button>
+
       </div>
     </div>
 
@@ -271,6 +279,19 @@ async function writePidOnce() {
   isPolling.value = true
   const payload = buildSetPidPayload()
   const ok = await send(MSP_CMD.SET_PID, payload)
+  if (ok) {
+    txCount.value++
+    await readPidOnce()
+  }
+  isPolling.value = false
+}
+
+async function resetPidOnce() {
+  if (!ENABLE_MSP_PROTOCOL) return
+  if (!connectionState.value.isConnected) return
+  isPolling.value = true
+  // resetIndex == 1: 恢复 PID 默认值
+  const ok = await send(MSP_CMD.RESET_CONF, new Uint8Array([1]))
   if (ok) {
     txCount.value++
     await readPidOnce()

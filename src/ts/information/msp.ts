@@ -41,6 +41,7 @@ export const MSP_CMD = {
   PID: 112,
   SET_PID: 202,
   SET_RC_TUNING: 204,
+  RESET_CONF: 208,
   SET_MOTOR: 214,
 } as const
 

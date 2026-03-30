@@ -243,6 +243,96 @@ static mspResult_e mspCommonProcessInCommand(mspDescriptor_t srcDesc, int16_t cm
                 motor_disarmed[i] = motorConvertFromExternal(sbufReadU16(src));
             }
             break;
+        case MSP_SET_RC_TUNING:
+            if (sbufBytesRemaining(src) >= 10) {
+                uint8_t rcRateRoll = sbufReadU8(src);
+                uint8_t rcExpoRoll = sbufReadU8(src);
+                uint8_t rateRoll = sbufReadU8(src);
+                uint8_t ratePitch = sbufReadU8(src);
+                uint8_t rateYaw = sbufReadU8(src);
+                sbufReadU8(src);    // tpa_rate (not used)
+                uint8_t thrMid = sbufReadU8(src);
+                uint8_t thrExpo = sbufReadU8(src);
+                sbufReadU16(src);   // tpa_breakpoint (not used)
+
+                uint8_t rcExpoYaw = rcExpoRoll;
+                uint8_t rcRateYaw = rcRateRoll;
+                uint8_t rcRatePitch = rcRateRoll;
+                uint8_t rcExpoPitch = rcExpoRoll;
+
+                if (sbufBytesRemaining(src) >= 1) {
+                    rcExpoYaw = sbufReadU8(src);
+                }
+
+                if (sbufBytesRemaining(src) >= 1) {
+                    rcRateYaw = sbufReadU8(src);
+                }
+
+                if (sbufBytesRemaining(src) >= 1) {
+                    rcRatePitch = sbufReadU8(src);
+                }
+
+                if (sbufBytesRemaining(src) >= 1) {
+                    rcExpoPitch = sbufReadU8(src);
+                }
+
+                // version 1.41: throttle_limit (not used)
+                if (sbufBytesRemaining(src) >= 2) {
+                    sbufReadU8(src);
+                    sbufReadU8(src);
+                }
+
+                // version 1.42: rate_limit (not used)
+                if (sbufBytesRemaining(src) >= 6) {
+                    sbufReadU16(src);
+                    sbufReadU16(src);
+                    sbufReadU16(src);
+                }
+
+                // version 1.43: rates_type (ignored)
+                if (sbufBytesRemaining(src) >= 1) {
+                    sbufReadU8(src);
+                }
+
+                // version 1.47: thrHover8 (not used)
+                if (sbufBytesRemaining(src) >= 1) {
+                    sbufReadU8(src);
+                }
+
+                /* Update runtime rcRateProfile */
+                rcRateProfile.rcRates[ROLL] = rcRateRoll;
+                rcRateProfile.rcExpo[ROLL] = rcExpoRoll;
+                rcRateProfile.rates[ROLL] = rateRoll;
+                rcRateProfile.rates[PITCH] = ratePitch;
+                rcRateProfile.rates[YAW] = rateYaw;
+                rcRateProfile.rcExpo[YAW] = rcExpoYaw;
+                rcRateProfile.rcRates[YAW] = rcRateYaw;
+                rcRateProfile.rcRates[PITCH] = rcRatePitch;
+                rcRateProfile.rcExpo[PITCH] = rcExpoPitch;
+
+                thrMid8 = thrMid;
+                thrExpo8 = thrExpo;
+
+                rateWriteToFlash();
+                break;
+        case MSP_RESET_CONF:
+            if (sbufBytesRemaining(src) >= 1) {
+                // Added in MSP API 1.42
+                const uint8_t resetIndex = sbufReadU8(src);
+                
+                if (resetIndex == 1) {
+                    /* Reset PID parameters to default values */
+                    ratePidReset();
+                    pidWriteToFlash();
+                } else if (resetIndex == 2) {
+                    /* Reset RATE parameters to default values */
+                    rcResetParam();
+                    rateWriteToFlash();
+                }
+                /* resetIndex == 0: do nothing */
+            }
+
+            break;
         default:
             return MSP_RESULT_CMD_UNKNOWN;
             break;

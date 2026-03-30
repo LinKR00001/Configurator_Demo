@@ -28,6 +28,14 @@
         >
           设置
         </button>
+        <button
+          v-if="connectionState.isConnected"
+          :class="['btn-sm', 'btn-danger', { loading: isLoading }]"
+          :disabled="isLoading"
+          @click="resetRateOnce"
+        >
+          恢复默认
+        </button>
       </div>
     </div>
 
@@ -404,6 +412,19 @@ async function writeRateOnce() {
   isLoading.value = false
 }
 
+async function resetRateOnce() {
+  if (!ENABLE_MSP_PROTOCOL) return
+  if (!connectionState.value.isConnected) return
+  isLoading.value = true
+  // resetIndex == 2: 恢复 RATE 默认值
+  const ok = await send(MSP_CMD.RESET_CONF, new Uint8Array([2]))
+  if (ok) {
+    txCount.value++
+    await readRateOnce()
+  }
+  isLoading.value = false
+}
+
 // ── 生命周期 ──────────────────────────────────────────────────
 let unbindRcTuning: (() => void) | null = null
 
@@ -745,6 +766,12 @@ onUnmounted(() => {
   border-color: var(--primary-500);
 }
 .btn-sm.btn-primary:hover:not(:disabled) { background: var(--primary-600); border-color: var(--primary-600); }
+.btn-sm.btn-danger {
+  background: rgba(239,68,68,0.1);
+  color: #ef4444;
+  border-color: rgba(239,68,68,0.3);
+}
+.btn-sm.btn-danger:hover:not(:disabled) { background: rgba(239,68,68,0.2); }
 .btn-sm:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-sm.loading { opacity: 0.7; cursor: wait; }
 .updated-at { font-size: var(--font-size-sm); color: var(--text-disabled); font-family: 'Consolas', monospace; }
