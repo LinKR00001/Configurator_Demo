@@ -307,14 +307,14 @@ const speedLevels = [
 
 // Rate 参数
 const rate = reactive({
-  rollCenter: 50, rollRate: 720, rollExpo: 0,
-  pitchCenter: 50, pitchRate: 720, pitchExpo: 0,
-  yawCenter: 50, yawRate: 360, yawExpo: 0
+  rollCenter: 0, rollRate: 0, rollExpo: 0,
+  pitchCenter: 0, pitchRate: 0, pitchExpo: 0,
+  yawCenter: 0, yawRate: 0, yawExpo: 0
 })
 
 // 油门参数
 const throttle = reactive({
-  mid: 50,
+  mid: 0,
   expo: 0
 })
 
@@ -412,6 +412,8 @@ onMounted(() => {
   unbindRcTuning = onRcTuningMessage((data) => {
     applyRcTuning(data)
   })
+  // 进入界面后自动读取一次
+  readRateOnce()
 })
 
 onUnmounted(() => {

@@ -285,6 +285,8 @@ onMounted(()  => {
   unbindPidMessage = onPidMessage((data) => {
     applyPid(data)
   })
+  // 进入界面后自动读取一次
+  readPidOnce()
 })
 onUnmounted(() => {
   unbindPidMessage?.()
