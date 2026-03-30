@@ -173,6 +173,38 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
 
             sbufWriteU16(dst, (uint16_t)(getBatteryVoltage()*100)); // in 0.01V steps
             break;
+    case MSP_RC_TUNING:
+        sbufWriteU8(dst, currentControlRateProfile->rcRates[FD_ROLL]);
+        sbufWriteU8(dst, currentControlRateProfile->rcExpo[FD_ROLL]);
+        for (int i = 0 ; i < 3; i++) {
+            sbufWriteU8(dst, currentControlRateProfile->rates[i]); // R,P,Y see flight_dynamics_index_t
+        }
+        sbufWriteU8(dst, 0);   // was currentControlRateProfile->tpa_rate
+        sbufWriteU8(dst, currentControlRateProfile->thrMid8);
+        sbufWriteU8(dst, currentControlRateProfile->thrExpo8);
+        sbufWriteU16(dst, 0);   // was currentControlRateProfile->tpa_breakpoint
+        sbufWriteU8(dst, currentControlRateProfile->rcExpo[FD_YAW]);
+        sbufWriteU8(dst, currentControlRateProfile->rcRates[FD_YAW]);
+        sbufWriteU8(dst, currentControlRateProfile->rcRates[FD_PITCH]);
+        sbufWriteU8(dst, currentControlRateProfile->rcExpo[FD_PITCH]);
+
+        // added in 1.41
+        sbufWriteU8(dst, currentControlRateProfile->throttle_limit_type);
+        sbufWriteU8(dst, currentControlRateProfile->throttle_limit_percent);
+
+        // added in 1.42
+        sbufWriteU16(dst, currentControlRateProfile->rate_limit[FD_ROLL]);
+        sbufWriteU16(dst, currentControlRateProfile->rate_limit[FD_PITCH]);
+        sbufWriteU16(dst, currentControlRateProfile->rate_limit[FD_YAW]);
+
+        // added in 1.43
+        sbufWriteU8(dst, currentControlRateProfile->rates_type);
+
+        // added in 1.47
+        sbufWriteU8(dst, currentControlRateProfile->thrHover8);
+
+        break;
+        
         default:
             unsupportedCommand = true;
         }
