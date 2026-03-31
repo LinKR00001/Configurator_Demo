@@ -158,16 +158,6 @@ const handleSerialError = (error: string) => {
   align-items: center;
 }
 
-.logo-section {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-}
-
-.logo-icon {
-  font-size: 28px;
-}
-
 .logo-text {
   font-size: 20px;
   font-weight: 700;
@@ -189,29 +179,10 @@ const handleSerialError = (error: string) => {
 }
 
 /* 内容区域 */
-.content-area {
-  flex: 1;
-  overflow: hidden;
-  background-color: var(--surface-100);
-}
-
-.blank-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--text-secondary);
-  font-size: 18px;
-}
-
 /* 响应式 */
 @media (max-width: 768px) {
   .top-bar {
     padding: var(--spacing-sm) var(--spacing-md);
-  }
-
-  .logo-icon {
-    font-size: 24px;
   }
 
   .logo-text {
