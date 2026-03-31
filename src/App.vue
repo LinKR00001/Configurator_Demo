@@ -14,16 +14,6 @@ import MotorTest from '@/components/Motor.vue'
 import Firmware from '@/components/Firmware.vue'
 import Rate from '@/components/RateSetting.vue'
 
-/**
- * 简化页面导航 - 仅保留串口连接和 Mavlink 调试
- *
- * 流程:
- * 1. 初始加载显示 Welcome 页面
- * 2. 用户点击 SerialPanel 的连接按钮 -> SerialManager.connect()
- * 3. 连接成功 -> 在 DebugPanel 显示 Mavlink 消息
- * 4. 用户点击断开连接 -> 连接状态由 useSerial 自动管理
- */
-
 type PageType = 'welcome' | 'message' | 'receiver' | 'pid' | 'devSerial' | 'gyro' | 'rate' | 'sensor' | 'motorTest' | 'firmware'
 
 const activePage = ref<PageType>('welcome')

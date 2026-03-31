@@ -478,8 +478,10 @@ export function useMsp() {
 
   async function send(command: number, payload: Uint8Array = new Uint8Array(0)): Promise<boolean> {
     const frame = encodeMspV1Frame(command, payload)
-    const now = formatTimeWithMilliseconds()
-    console.log(`[MSP TX ${now}] cmd=${command} len=${payload.length} frame=${toHex(frame)}`)
+    if (ENABLE_MSP_RX_FRAME_LOG) {
+      const now = formatTimeWithMilliseconds()
+      console.log(`[MSP TX ${now}] cmd=${command} len=${payload.length} frame=${toHex(frame)}`)
+    }
     return serial.send(frame)
   }
 
