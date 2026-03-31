@@ -14,16 +14,6 @@ import MotorTest from '@/components/Motor.vue'
 import Firmware from '@/components/Firmware.vue'
 import Rate from '@/components/RateSetting.vue'
 
-/**
- * 简化页面导航 - 仅保留串口连接和 Mavlink 调试
- *
- * 流程:
- * 1. 初始加载显示 Welcome 页面
- * 2. 用户点击 SerialPanel 的连接按钮 -> SerialManager.connect()
- * 3. 连接成功 -> 在 DebugPanel 显示 Mavlink 消息
- * 4. 用户点击断开连接 -> 连接状态由 useSerial 自动管理
- */
-
 type PageType = 'welcome' | 'message' | 'receiver' | 'pid' | 'devSerial' | 'gyro' | 'rate' | 'sensor' | 'motorTest' | 'firmware'
 
 const activePage = ref<PageType>('welcome')
@@ -158,16 +148,6 @@ const handleSerialError = (error: string) => {
   align-items: center;
 }
 
-.logo-section {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-}
-
-.logo-icon {
-  font-size: 28px;
-}
-
 .logo-text {
   font-size: 20px;
   font-weight: 700;
@@ -189,29 +169,10 @@ const handleSerialError = (error: string) => {
 }
 
 /* 内容区域 */
-.content-area {
-  flex: 1;
-  overflow: hidden;
-  background-color: var(--surface-100);
-}
-
-.blank-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--text-secondary);
-  font-size: 18px;
-}
-
 /* 响应式 */
 @media (max-width: 768px) {
   .top-bar {
     padding: var(--spacing-sm) var(--spacing-md);
-  }
-
-  .logo-icon {
-    font-size: 24px;
   }
 
   .logo-text {

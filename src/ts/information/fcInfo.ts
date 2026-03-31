@@ -7,7 +7,7 @@
 import { ref, readonly } from 'vue'
 import { useSerial } from '@/composables/useSerial'
 import { MSP_CMD, encodeMspV1Frame, useMsp } from '@/ts/information/msp'
-import { ENABLE_CUSTOM_PROTOCOL, ENABLE_MSP_PROTOCOL } from '@/ts/information/protocolFlags'
+import { ENABLE_CUSTOM_PROTOCOL, ENABLE_MSP_PROTOCOL, ENABLE_MSP_RX_FRAME_LOG } from '@/ts/information/protocolFlags'
 
 const QUERY_CMD = new Uint8Array([0xFE, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0xA8, 0xF2])
 const POLL_INTERVAL_MS = 2000
@@ -78,7 +78,9 @@ async function requestMspFcVersionOnce() {
   const serialManager = getInstance()
   if (!serialManager.getConnected()) return false
   const frame = encodeMspV1Frame(MSP_CMD.FC_VERSION)
-  console.log(`[MSP TX][MSP_FC_VERSION] ${toHex(frame)}`)
+  if (ENABLE_MSP_RX_FRAME_LOG) {
+    console.log(`[MSP TX][MSP_FC_VERSION] ${toHex(frame)}`)
+  }
   return serialManager.send(frame)
 }
 

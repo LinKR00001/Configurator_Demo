@@ -26,16 +26,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
 
 const { getInstance, connectionState } = useSerial()
-
-// ── 定时器句柄 ───────────────────────────────────────────────
-let pollTimerId: ReturnType<typeof setInterval> | null = null
-let fpsTimerId:  ReturnType<typeof setInterval> | null = null
-
-
 
 function handleData(event: any) {
   const chunk: Uint8Array = event.data
@@ -69,16 +63,6 @@ onUnmounted(() => { getInstance().removeEventListener('data', handleData) })
 .page-header-left h1 { margin-bottom: 2px; }
 .page-subtitle { font-size: var(--font-size-sm); color: var(--text-disabled); margin: 0; }
 .header-right { display: flex; align-items: center; gap: var(--spacing-md); flex-shrink: 0; }
-.conn-btn { flex-shrink: 0; }
-
-.frame-rate {
-  font-family: 'Consolas', monospace;
-  font-size: var(--font-size-sm);
-  color: var(--primary-500);
-  background: var(--surface-200);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-}
 
 
 /* 未连接 */
@@ -88,17 +72,4 @@ onUnmounted(() => { getInstance().removeEventListener('data', handleData) })
   gap: var(--spacing-md); color: var(--text-disabled);
 }
 .not-connected-icon { font-size: 48px; opacity: 0.3; }
-
-
-/* 底部统计 */
-.stats-row {
-  display: flex;
-  gap: var(--spacing-xl);
-  flex-wrap: wrap;
-  padding: var(--spacing-md) 0;
-  border-top: 1px solid var(--border-light);
-  margin-top: var(--spacing-lg);
-}
-.stat-item { font-size: var(--font-size-sm); color: var(--text-disabled); }
-.stat-item strong { color: var(--text-primary); font-family: 'Consolas', monospace; }
 </style>

@@ -37,8 +37,11 @@ export const MSP_CMD = {
   RAW_IMU: 102,
   RC: 105,
   ATTITUDE: 108,
+  RC_TUNING: 111,
   PID: 112,
   SET_PID: 202,
+  SET_RC_TUNING: 204,
+  RESET_CONF: 208,
   SET_MOTOR: 214,
 } as const
 
@@ -82,17 +85,47 @@ export interface MspPidFrame {
   yawD: number
 }
 
+export interface MspRcTuningFrame {
+  // Roll
+  rcRateRoll: number        // uint8  rcRates[FD_ROLL]  — center sensitivity
+  rcExpoRoll: number        // uint8  rcExpo[FD_ROLL]
+  rateRoll: number          // uint8  rates[FD_ROLL]    — scale factor
+  rateLimitRoll: number     // uint16 rate_limit[FD_ROLL] deg/s
+  // Pitch
+  rcRatePitch: number       // uint8  rcRates[FD_PITCH]
+  rcExpoPitch: number       // uint8  rcExpo[FD_PITCH]
+  ratePitch: number         // uint8  rates[FD_PITCH]
+  rateLimitPitch: number    // uint16 rate_limit[FD_PITCH] deg/s
+  // Yaw
+  rcRateYaw: number         // uint8  rcRates[FD_YAW]
+  rcExpoYaw: number         // uint8  rcExpo[FD_YAW]
+  rateYaw: number           // uint8  rates[FD_YAW]
+  rateLimitYaw: number      // uint16 rate_limit[FD_YAW] deg/s
+  // Throttle
+  thrMid: number            // uint8  thrMid8
+  thrExpo: number           // uint8  thrExpo8
+  thrHover: number          // uint8  thrHover8
+  // Preserved fields (write back as-is)
+  tpaRate: number           // uint8  (was tpa_rate)
+  tpaBreakpoint: number     // uint16 (was tpa_breakpoint)
+  throttleLimitType: number // uint8
+  throttleLimitPercent: number // uint8
+  ratesType: number         // uint8
+}
+
 type MspHandler = (frame: MspFrame) => void
 type MspRcHandler = (rc: MspRcFrame) => void
 type MspImuHandler = (imu: MspImuFrame) => void
 type MspAttitudeHandler = (attitude: MspAttitudeFrame) => void
 type MspPidHandler = (pid: MspPidFrame) => void
+type MspRcTuningHandler = (rcTuning: MspRcTuningFrame) => void
 
 const listenersByCmd = new Map<number, Set<MspHandler>>()
 const rcListeners = new Set<MspRcHandler>()
 const imuListeners = new Set<MspImuHandler>()
 const attitudeListeners = new Set<MspAttitudeHandler>()
 const pidListeners = new Set<MspPidHandler>()
+const rcTuningListeners = new Set<MspRcTuningHandler>()
 
 let initialized = false
 let rxBuf = new Uint8Array(512)
@@ -176,6 +209,13 @@ function dispatchFrame(frame: MspFrame) {
       pidListeners.forEach((handler) => handler(pid))
     }
   }
+
+  if (frame.direction === '>' && frame.command === MSP_CMD.RC_TUNING) {
+    const rcTuning = parseRcTuningPayload(frame.payload)
+    if (rcTuning) {
+      rcTuningListeners.forEach((handler) => handler(rcTuning))
+    }
+  }
 }
 
 function parseImuPayload(payload: Uint8Array): MspImuFrame | null {
@@ -221,6 +261,74 @@ function parsePidPayload(payload: Uint8Array): MspPidFrame | null {
     yawI: payload[7]!,
     yawD: payload[8]!,
   }
+}
+
+function parseRcTuningPayload(payload: Uint8Array): MspRcTuningFrame | null {
+  // MSP_RC_TUNING response is 24 bytes minimum (added in v1.43/v1.47)
+  if (payload.length < 24) return null
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
+  return {
+    // byte 0: rcRates[FD_ROLL]
+    rcRateRoll:          payload[0]!,
+    // byte 1: rcExpo[FD_ROLL]
+    rcExpoRoll:          payload[1]!,
+    // byte 2-4: rates[R,P,Y]
+    rateRoll:            payload[2]!,
+    ratePitch:           payload[3]!,
+    rateYaw:             payload[4]!,
+    // byte 5: was tpa_rate
+    tpaRate:             payload[5]!,
+    // byte 6-7: thrMid8, thrExpo8
+    thrMid:              payload[6]!,
+    thrExpo:             payload[7]!,
+    // byte 8-9: was tpa_breakpoint (uint16 LE)
+    tpaBreakpoint:       view.getUint16(8, true),
+    // byte 10: rcExpo[FD_YAW]
+    rcExpoYaw:           payload[10]!,
+    // byte 11: rcRates[FD_YAW]
+    rcRateYaw:           payload[11]!,
+    // byte 12: rcRates[FD_PITCH]
+    rcRatePitch:         payload[12]!,
+    // byte 13: rcExpo[FD_PITCH]
+    rcExpoPitch:         payload[13]!,
+    // byte 14-15: throttle_limit_type, throttle_limit_percent
+    throttleLimitType:   payload[14]!,
+    throttleLimitPercent:payload[15]!,
+    // byte 16-21: rate_limit[R,P,Y] (uint16 LE each)
+    rateLimitRoll:       view.getUint16(16, true),
+    rateLimitPitch:      view.getUint16(18, true),
+    rateLimitYaw:        view.getUint16(20, true),
+    // byte 22: rates_type
+    ratesType:           payload[22]!,
+    // byte 23: thrHover8
+    thrHover:            payload[23]!,
+  }
+}
+
+export function encodeSetRcTuningPayload(t: MspRcTuningFrame): Uint8Array {
+  const buf = new Uint8Array(24)
+  const view = new DataView(buf.buffer)
+  buf[0]  = t.rcRateRoll   & 0xFF
+  buf[1]  = t.rcExpoRoll   & 0xFF
+  buf[2]  = t.rateRoll     & 0xFF
+  buf[3]  = t.ratePitch    & 0xFF
+  buf[4]  = t.rateYaw      & 0xFF
+  buf[5]  = t.tpaRate      & 0xFF
+  buf[6]  = t.thrMid       & 0xFF
+  buf[7]  = t.thrExpo      & 0xFF
+  view.setUint16(8,  t.tpaBreakpoint,       true)
+  buf[10] = t.rcExpoYaw    & 0xFF
+  buf[11] = t.rcRateYaw    & 0xFF
+  buf[12] = t.rcRatePitch  & 0xFF
+  buf[13] = t.rcExpoPitch  & 0xFF
+  buf[14] = t.throttleLimitType    & 0xFF
+  buf[15] = t.throttleLimitPercent & 0xFF
+  view.setUint16(16, t.rateLimitRoll,  true)
+  view.setUint16(18, t.rateLimitPitch, true)
+  view.setUint16(20, t.rateLimitYaw,   true)
+  buf[22] = t.ratesType    & 0xFF
+  buf[23] = t.thrHover     & 0xFF
+  return buf
 }
 
 function parseRcPayload(payload: Uint8Array): MspRcFrame | null {
@@ -361,10 +469,19 @@ export function useMsp() {
     }
   }
 
+  function onRcTuningMessage(handler: MspRcTuningHandler): () => void {
+    rcTuningListeners.add(handler)
+    return () => {
+      rcTuningListeners.delete(handler)
+    }
+  }
+
   async function send(command: number, payload: Uint8Array = new Uint8Array(0)): Promise<boolean> {
     const frame = encodeMspV1Frame(command, payload)
-    const now = formatTimeWithMilliseconds()
-    console.log(`[MSP TX ${now}] cmd=${command} len=${payload.length} frame=${toHex(frame)}`)
+    if (ENABLE_MSP_RX_FRAME_LOG) {
+      const now = formatTimeWithMilliseconds()
+      console.log(`[MSP TX ${now}] cmd=${command} len=${payload.length} frame=${toHex(frame)}`)
+    }
     return serial.send(frame)
   }
 
@@ -374,6 +491,7 @@ export function useMsp() {
     onImuMessage,
     onAttitudeMessage,
     onPidMessage,
+    onRcTuningMessage,
     send,
   }
 }

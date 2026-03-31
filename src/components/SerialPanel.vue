@@ -132,34 +132,6 @@ onUnmounted(async () => {
   font-weight: 500;
 }
 
-/* 飞控信息 chip */
-.fc-info-chip {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: 28px;
-  padding: 0 10px;
-  background-color: var(--surface-200);
-  border: 1px solid var(--border-light);
-  border-radius: 14px;
-  font-size: 12px;
-  color: var(--text-primary);
-  white-space: nowrap;
-}
-
-.fc-version {
-  font-weight: 600;
-  color: var(--primary-600);
-}
-
-.fc-divider {
-  color: var(--border-dark);
-}
-
-.fc-target {
-  color: var(--text-secondary);
-}
-
 /* 波特率下拉框 */
 .baud-select {
   height: 28px;

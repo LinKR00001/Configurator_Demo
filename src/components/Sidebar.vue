@@ -1,6 +1,3 @@
-
-import Receiver from './components/receiver.vue';
-
 <template>
   <div class="sidebar">
     <nav class="sidebar-nav">
@@ -164,15 +161,6 @@ const selectItem = (item: string) => {
   margin-bottom: var(--spacing-xl);
 }
 
-.nav-section h4 {
-  margin: 0 var(--spacing-md) var(--spacing-sm) var(--spacing-md);
-  font-size: var(--font-size-sm);
-  color: var(--surface-600);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
 .nav-item {
   display: flex;
   align-items: center;
@@ -195,10 +183,6 @@ const selectItem = (item: string) => {
     background-color: var(--primary-500);
     color: var(--text-on-primary);
     font-weight: 600;
-
-    .nav-icon {
-      transform: scale(1.2);
-    }
   }
 
   &.disabled {
@@ -206,12 +190,6 @@ const selectItem = (item: string) => {
     cursor: not-allowed;
     pointer-events: none;
   }
-}
-
-.nav-icon {
-  font-size: 18px;
-  flex-shrink: 0;
-  transition: transform var(--transition-base);
 }
 
 .nav-label {
@@ -256,16 +234,8 @@ const selectItem = (item: string) => {
     width: 200px;
   }
 
-  .sidebar-header h3 {
-    font-size: var(--font-size-base);
-  }
-
   .nav-label {
     display: none;
-  }
-
-  .nav-icon {
-    margin: 0 auto;
   }
 
   .sidebar-nav {
