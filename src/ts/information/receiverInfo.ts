@@ -1,7 +1,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
-import { MSP_CMD, useMsp } from '@/ts/information/msp'
-import { ENABLE_CUSTOM_PROTOCOL, ENABLE_MSP_PROTOCOL } from '@/ts/information/protocolFlags'
+import { MSP_CMD, useMsp } from '@/ts/msp/msp'
+import { ENABLE_CUSTOM_PROTOCOL, ENABLE_MSP_PROTOCOL } from '@/ts/msp/protocolFlags'
 
 const MAV_STX = 0xFE
 const MSG_ID_RC_CHANNELS = 7

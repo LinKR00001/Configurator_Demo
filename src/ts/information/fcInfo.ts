@@ -6,8 +6,8 @@
 
 import { ref, readonly } from 'vue'
 import { useSerial } from '@/composables/useSerial'
-import { MSP_CMD, encodeMspV1Frame, useMsp } from '@/ts/information/msp'
-import { ENABLE_CUSTOM_PROTOCOL, ENABLE_MSP_PROTOCOL, ENABLE_MSP_RX_FRAME_LOG } from '@/ts/information/protocolFlags'
+import { MSP_CMD, encodeMspV1Frame, useMsp } from '@/ts/msp/msp'
+import { ENABLE_CUSTOM_PROTOCOL, ENABLE_MSP_PROTOCOL, ENABLE_MSP_RX_FRAME_LOG } from '@/ts/msp/protocolFlags'
 
 const QUERY_CMD = new Uint8Array([0xFE, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0xA8, 0xF2])
 const POLL_INTERVAL_MS = 2000

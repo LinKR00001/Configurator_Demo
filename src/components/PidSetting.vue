@@ -176,8 +176,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
-import { MSP_CMD, useMsp, type MspPidFrame } from '@/ts/information/msp'
-import { ENABLE_MSP_PROTOCOL } from '@/ts/information/protocolFlags'
+import { MSP_CMD, useMsp, type MspPidFrame } from '@/ts/msp/msp'
+import { ENABLE_MSP_PROTOCOL } from '@/ts/msp/protocolFlags'
 
 const { getInstance, connectionState } = useSerial()
 const { onPidMessage, send } = useMsp()

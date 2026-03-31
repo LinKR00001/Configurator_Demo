@@ -1,5 +1,5 @@
 import { useSerial } from '@/composables/useSerial'
-import { ENABLE_MSP_RX_FRAME_LOG, ENABLE_MSP_PROTOCOL } from '@/ts/information/protocolFlags'
+import { ENABLE_MSP_RX_FRAME_LOG, ENABLE_MSP_PROTOCOL } from '@/ts/msp/protocolFlags'
 
 const MSP = {
   //demo 函数
