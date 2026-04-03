@@ -15,8 +15,11 @@
       </div>
     </div>
 
+    <!-- 指令区 + 传感器型号 -->
+    <div class="cmd-sensor-row">
+
     <!-- 指令区 -->
-    <div class="panel">
+    <div class="panel cmd-panel">
       <div class="panel-header">
         <h2>指令控制</h2>
       </div>
@@ -77,9 +80,50 @@
             {{ isClearingBlackbox ? '清除中...' : '发送' }}
           </button>
         </div>
+
+        <div class="cmd-divider"></div>
+
+        <!-- 读取当前传感器型号 -->
+        <div class="cmd-item">
+          <div class="cmd-info">
+            <span class="cmd-name">读取当前传感器型号</span>
+            <span class="cmd-hex">MSP2 0x300A</span>
+            <span class="cmd-desc">查询飞控当前实际启用的各类传感器型号</span>
+          </div>
+          <button
+            class="cmd-btn"
+            :disabled="!isConnected || isReadingSensorConfig"
+            @click="readSensorConfigActive"
+          >
+            {{ isReadingSensorConfig ? '读取中...' : '读取' }}
+          </button>
+        </div>
       </div>
     </div>
 
+    <!-- 传感器型号结果 -->
+    <div class="panel sensor-panel">
+      <div class="panel-header">
+        <h2>当前传感器型号</h2>
+      </div>
+
+      <div v-if="lastSensorConfigAt" class="sensor-meta">
+        最近更新时间：{{ lastSensorConfigAt }}
+      </div>
+
+      <div class="sensor-grid">
+        <div class="sensor-card" v-for="item in sensorConfigItems" :key="item.key">
+          <span class="sensor-label">{{ item.label }}</span>
+          <span class="sensor-model">{{ item.model }}</span>
+          <span class="sensor-raw">索引值: {{ formatSensorRaw(item.raw) }}</span>
+        </div>
+      </div>
+
+      <div class="sensor-tip" v-if="!lastSensorConfigAt">
+        点击上方“读取当前传感器型号”后显示结果
+      </div>
+    </div>
+    </div><!-- /.cmd-sensor-row -->
     <!-- 终端日志 -->
     <div class="panel">
       <div class="panel-header">
@@ -99,6 +143,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
+import { ENABLE_DEV_PANEL_SERIAL_LOG } from '@/ts/msp/protocolFlags'
 
 const { getInstance, connectionState } = useSerial()
 const serialManager = getInstance()
@@ -111,6 +156,78 @@ const CMD_CLEAR_BLACKBOX = new Uint8Array([0x01, 0x01, 0x02])
 const isConnected = computed(() => connectionState.value.isConnected)
 const log = ref('')
 const terminalBody = ref<HTMLElement | null>(null)
+
+const MSP2_SENSOR_CONFIG_ACTIVE = 0x300A
+const SENSOR_NOT_AVAILABLE = 0xFF
+
+const lookupTableGyroHardware = [
+  'NONE', 'AUTO', 'MPU6050', 'L3GD20', 'MPU6000', 'MPU6500', 'MPU9250',
+  'ICM20601', 'ICM20602', 'ICM20608G', 'ICM20649', 'ICM20689', 'ICM42605',
+  'ICM42688P', 'BMI160', 'BMI270', 'LSM6DSO', 'LSM6DSV16X', 'IIM42653',
+  'ICM45605', 'ICM45686', 'ICM40609D', 'IIM42652', 'LSM6DSK320X', 'ICM42622P','BMI088',
+  'VIRTUAL'
+]
+
+const lookupTableAccHardware = [
+  'AUTO', 'NONE', 'MPU6050', 'MPU6000', 'MPU6500', 'MPU9250', 'ICM20601',
+  'ICM20602', 'ICM20608G', 'ICM20649', 'ICM20689', 'ICM42605', 'ICM42688P',
+  'BMI160', 'BMI270', 'LSM6DSO', 'LSM6DSV16X', 'IIM42653', 'ICM45605', 'ICM45686',
+  'ICM40609D', 'IIM42652', 'LSM6DSK320X', 'ICM42622P','BMI088','VIRTUAL'
+]
+
+const lookupTableBaroHardware = [
+  'AUTO', 'NONE', 'BMP085', 'MS5611', 'BMP280', 'LPS', 'QMP6988', 'BMP388',
+  'DPS310', '2SMPB_02B', 'LPS22DF', 'BMP580', 'BMP581', 'VIRTUAL'
+]
+
+const lookupTableRangefinderHardware = [
+  'NONE', 'HCSR04', 'TFMINI', 'TF02', 'MTF01', 'MTF02', 'MTF01P', 'MTF02P',
+  'TFNOVA', 'NOOPLOOP_F2', 'NOOPLOOP_F2P', 'NOOPLOOP_F2PH', 'NOOPLOOP_F',
+  'NOOPLOOP_FP', 'NOOPLOOP_F2MINI'
+]
+
+const lookupTableOpticalflowHardware = [
+  'NONE', 'MT'
+]
+
+type SensorKind = 'gyro' | 'acc' | 'baro' | 'mag' | 'rangefinder' | 'opticalflow'
+
+interface SensorConfigActiveState {
+  gyro: number
+  acc: number
+  baro: number
+  mag: number
+  rangefinder: number
+  opticalflow: number
+}
+
+const sensorConfigActive = ref<SensorConfigActiveState>({
+  gyro: SENSOR_NOT_AVAILABLE,
+  acc: SENSOR_NOT_AVAILABLE,
+  baro: SENSOR_NOT_AVAILABLE,
+  mag: SENSOR_NOT_AVAILABLE,
+  rangefinder: SENSOR_NOT_AVAILABLE,
+  opticalflow: SENSOR_NOT_AVAILABLE,
+})
+const isReadingSensorConfig = ref(false)
+const lastSensorConfigAt = ref('')
+
+let sensorReadTimeoutId: ReturnType<typeof setTimeout> | null = null
+const sensorReadTimeoutMs = 1500
+let sensorRxBuffer = new Uint8Array(512)
+let sensorRxLen = 0
+
+const sensorConfigItems = computed(() => {
+  const data = sensorConfigActive.value
+  return [
+    { key: 'gyro', label: '陀螺仪 (Gyro)', raw: data.gyro, model: resolveSensorModel('gyro', data.gyro) },
+    { key: 'acc', label: '加速度计 (Acc)', raw: data.acc, model: resolveSensorModel('acc', data.acc) },
+    { key: 'baro', label: '气压计 (Baro)', raw: data.baro, model: resolveSensorModel('baro', data.baro) },
+    { key: 'mag', label: '磁力计 (Mag)', raw: data.mag, model: resolveSensorModel('mag', data.mag) },
+    { key: 'rangefinder', label: '测距 (Rangefinder)', raw: data.rangefinder, model: resolveSensorModel('rangefinder', data.rangefinder) },
+    { key: 'opticalflow', label: '光流 (Optical Flow)', raw: data.opticalflow, model: resolveSensorModel('opticalflow', data.opticalflow) },
+  ]
+})
 
 // 黑匣子读取状态
 const isReadingBlackbox = ref(false)
@@ -150,6 +267,162 @@ function toHexLog(bytes: Uint8Array): string {
 
 function timestamp(): string {
   return new Date().toLocaleTimeString('zh-CN', { hour12: false })
+}
+
+function formatTimeMs(): string {
+  const now = new Date()
+  return `${now.toLocaleTimeString('zh-CN', { hour12: false })}.${now.getMilliseconds().toString().padStart(3, '0')}`
+}
+
+function formatSensorRaw(raw: number): string {
+  return raw === SENSOR_NOT_AVAILABLE
+    ? '0xFF'
+    : `0x${raw.toString(16).toUpperCase().padStart(2, '0')}`
+}
+
+function resolveSensorModel(kind: SensorKind, idx: number): string {
+  if (idx === SENSOR_NOT_AVAILABLE) return 'NOT_AVAILABLE'
+
+  let table: string[] = []
+  switch (kind) {
+    case 'gyro': table = lookupTableGyroHardware; break
+    case 'acc': table = lookupTableAccHardware; break
+    case 'baro': table = lookupTableBaroHardware; break
+    case 'rangefinder': table = lookupTableRangefinderHardware; break
+    case 'opticalflow': table = lookupTableOpticalflowHardware; break
+    case 'mag':
+      return 'NOT_AVAILABLE'
+  }
+
+  return table[idx] ?? `UNKNOWN(${idx})`
+}
+
+function crc8DvbS2Update(crc: number, value: number): number {
+  let c = (crc ^ value) & 0xFF
+  for (let i = 0; i < 8; i++) {
+    c = (c & 0x80) ? (((c << 1) ^ 0xD5) & 0xFF) : ((c << 1) & 0xFF)
+  }
+  return c
+}
+
+function crc8DvbS2(data: Uint8Array): number {
+  let crc = 0
+  for (let i = 0; i < data.length; i++) {
+    crc = crc8DvbS2Update(crc, data[i]!)
+  }
+  return crc
+}
+
+function encodeMspV2Native(command: number, payload: Uint8Array = new Uint8Array(0)): Uint8Array {
+  const frame = new Uint8Array(9 + payload.length)
+  frame[0] = 0x24 // $
+  frame[1] = 0x58 // X
+  frame[2] = 0x3C // <
+  frame[3] = 0x00 // flags
+  frame[4] = command & 0xFF
+  frame[5] = (command >> 8) & 0xFF
+  frame[6] = payload.length & 0xFF
+  frame[7] = (payload.length >> 8) & 0xFF
+  frame.set(payload, 8)
+  frame[8 + payload.length] = crc8DvbS2(frame.subarray(3, 8 + payload.length))
+  return frame
+}
+
+function ensureSensorBuffer(required: number) {
+  if (required <= sensorRxBuffer.length) return
+  const next = new Uint8Array(Math.max(sensorRxBuffer.length * 2, required))
+  next.set(sensorRxBuffer.subarray(0, sensorRxLen))
+  sensorRxBuffer = next
+}
+
+function clearSensorReadWait() {
+  if (sensorReadTimeoutId) {
+    clearTimeout(sensorReadTimeoutId)
+    sensorReadTimeoutId = null
+  }
+  isReadingSensorConfig.value = false
+}
+
+function scheduleSensorReadTimeout() {
+  if (sensorReadTimeoutId) clearTimeout(sensorReadTimeoutId)
+  sensorReadTimeoutId = setTimeout(() => {
+    if (!isReadingSensorConfig.value) return
+    isReadingSensorConfig.value = false
+    log.value += `[${timestamp()}] [WARN] 读取传感器型号超时\n`
+  }, sensorReadTimeoutMs)
+}
+
+function parseSensorConfigPayload(payload: Uint8Array) {
+  if (payload.length < 6) return
+  sensorConfigActive.value = {
+    gyro: payload[0]!,
+    acc: payload[1]!,
+    baro: payload[2]!,
+    mag: payload[3]!,
+    rangefinder: payload[4]!,
+    opticalflow: payload[5]!,
+  }
+  if (ENABLE_DEV_PANEL_SERIAL_LOG) {
+    console.log(`[DEV RX ${formatTimeMs()}] MSP2 cmd=0x${MSP2_SENSOR_CONFIG_ACTIVE.toString(16).toUpperCase()} len=${payload.length} payload=${toHexLog(payload)}`)
+  }
+  lastSensorConfigAt.value = timestamp()
+  clearSensorReadWait()
+  log.value += `[${timestamp()}] [INFO] 已更新当前传感器型号\n`
+}
+
+function processSensorFrames() {
+  let i = 0
+  while (i < sensorRxLen) {
+    if (sensorRxBuffer[i] !== 0x24) { i++; continue } // $
+    if (i + 9 > sensorRxLen) break
+    if (sensorRxBuffer[i + 1] !== 0x58) { i++; continue } // X
+
+    const direction = sensorRxBuffer[i + 2]
+    if (direction !== 0x3E && direction !== 0x21 && direction !== 0x3C) { i++; continue }
+
+    const payloadSize = sensorRxBuffer[i + 6]! | (sensorRxBuffer[i + 7]! << 8)
+    const frameLen = 9 + payloadSize
+    if (i + frameLen > sensorRxLen) break
+
+    const crcExpected = sensorRxBuffer[i + 8 + payloadSize]!
+    const crcActual = crc8DvbS2(sensorRxBuffer.subarray(i + 3, i + 8 + payloadSize))
+
+    if (crcExpected === crcActual) {
+      const cmd = sensorRxBuffer[i + 4]! | (sensorRxBuffer[i + 5]! << 8)
+      if (direction === 0x3E && cmd === MSP2_SENSOR_CONFIG_ACTIVE) {
+        parseSensorConfigPayload(sensorRxBuffer.subarray(i + 8, i + 8 + payloadSize))
+      }
+      i += frameLen
+    } else {
+      i++
+    }
+  }
+
+  if (i > 0 && i < sensorRxLen) {
+    sensorRxBuffer.copyWithin(0, i, sensorRxLen)
+    sensorRxLen -= i
+  } else if (i >= sensorRxLen) {
+    sensorRxLen = 0
+  }
+}
+
+async function readSensorConfigActive() {
+  const frame = encodeMspV2Native(MSP2_SENSOR_CONFIG_ACTIVE)
+  isReadingSensorConfig.value = true
+  sensorRxLen = 0
+  scheduleSensorReadTimeout()
+
+  const ok = await serialManager.send(frame)
+  if (!ok) {
+    clearSensorReadWait()
+    log.value += `[${timestamp()}] [ERR] 读取传感器型号 发送失败\n`
+    return
+  }
+
+  log.value += `[${timestamp()}] [TX] 读取传感器型号  ${toHexLog(frame)}\n`
+  if (ENABLE_DEV_PANEL_SERIAL_LOG) {
+    console.log(`[DEV TX ${formatTimeMs()}] MSP2 cmd=0x${MSP2_SENSOR_CONFIG_ACTIVE.toString(16).toUpperCase()} len=0 frame=${toHexLog(frame)}`)
+  }
 }
 
 async function send(cmd: Uint8Array, label: string) {
@@ -283,6 +556,13 @@ const handleData = (event: any) => {
     }
   } else {
     log.value += `[${timestamp()}] [RX] ${toHexLog(data)}\n`
+
+    if (isReadingSensorConfig.value) {
+      ensureSensorBuffer(sensorRxLen + data.length)
+      sensorRxBuffer.set(data, sensorRxLen)
+      sensorRxLen += data.length
+      processSensorFrames()
+    }
   }
 }
 
@@ -293,6 +573,8 @@ const handleConnected = () => {
 const handleDisconnected = () => {
   if (isReadingBlackbox.value) stopBlackboxRead()
   if (isClearingBlackbox.value) { isClearingBlackbox.value = false; clearResponseBuf = '' }
+  clearSensorReadWait()
+  sensorRxLen = 0
   log.value += `[${timestamp()}] [INFO] 已断开连接\n`
 }
 
@@ -302,6 +584,7 @@ serialManager.addEventListener('data', handleData)
 
 onUnmounted(() => {
   stopBlackboxRead()
+  clearSensorReadWait()
   serialManager.removeEventListener('connected', handleConnected)
   serialManager.removeEventListener('disconnected', handleDisconnected)
   serialManager.removeEventListener('data', handleData)
@@ -311,7 +594,7 @@ onUnmounted(() => {
 <style scoped>
 .dev-container {
   padding: var(--spacing-2xl);
-  max-width: 860px;
+  max-width: 1100px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -429,6 +712,74 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
+/* 指令 + 传感器并排行 */
+.cmd-sensor-row {
+  display: flex;
+  gap: var(--spacing-xl);
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border-light);
+  padding: var(--spacing-lg) 0;
+}
+
+.cmd-panel {
+  flex: 0 0 auto;
+  min-width: 340px;
+  border-bottom: none;
+  padding: 0;
+}
+
+.sensor-panel {
+  flex: 1;
+  min-width: 0;
+  border-bottom: none;
+  padding: 0;
+}
+
+.sensor-meta {
+  font-size: var(--font-size-sm);
+  color: var(--text-disabled);
+  margin-bottom: var(--spacing-sm);
+}
+
+.sensor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.sensor-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--spacing-md);
+  border: 1px solid var(--border-light);
+  background-color: var(--surface-100);
+}
+
+.sensor-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-disabled);
+}
+
+.sensor-model {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  color: var(--primary-600);
+  font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.sensor-raw {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.sensor-tip {
+  margin-top: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-disabled);
+}
+
 /* 终端 */
 .terminal {
   border: 1px solid var(--border-light);
@@ -458,5 +809,20 @@ onUnmounted(() => {
   border: 1px solid var(--border-light);
   color: var(--text-disabled);
   font-size: var(--font-size-sm);
+}
+
+@media (max-width: 760px) {
+  .sensor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cmd-sensor-row {
+    flex-direction: column;
+  }
+
+  .cmd-panel {
+    min-width: 0 !important;
+    width: 100%;
+  }
 }
 </style>

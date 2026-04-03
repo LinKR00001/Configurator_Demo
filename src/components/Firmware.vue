@@ -27,6 +27,13 @@
       <button class="btn btn-primary" :disabled="isBurning" @click="openFirmwarePicker">加载固件</button>
       <button
         class="btn btn-danger"
+        :disabled="!canEnterBootloader"
+        @click="handleEnterBootloaderMode"
+      >
+        进入烧录模式
+      </button>
+      <button
+        class="btn btn-danger"
         :disabled="!canBurn"
         @click="handleBurnFirmware"
       >
@@ -78,7 +85,7 @@
           </div>
         </div>
 
-        <section v-if="flashLogs.length" class="flash-log panel">
+        <section v-if="isUpgradeLogEnabled && flashLogs.length" class="flash-log panel">
           <div class="panel-header">
             <h2>升级日志</h2>
           </div>
@@ -89,12 +96,6 @@
       </aside>
     </div>
 
-    <!-- 未连接提示 -->
-    <div v-if="!connectionState.isConnected" class="not-connected">
-      <span class="not-connected-icon">○</span>
-      <p>请先通过顶部串口面板连接飞控</p>
-    </div>
-
   </div>
 </template>
 
@@ -103,9 +104,12 @@ import { computed, ref } from 'vue'
 import { useSerial } from '@/composables/useSerial'
 import { createEmptyFirmwareMetadata, loadFirmwareBinary, type FirmwareImage } from '@/ts/firmware/binLoader'
 import { flashFirmwareImage, type FirmwareFlashProgress } from '@/ts/firmware/firmwareComm'
+import { ENABLE_FIRMWARE_UPGRADE_LOG } from '@/ts/msp/protocolFlags'
 
 const { getInstance, connectionState } = useSerial()
 const serialManager = getInstance()
+const isUpgradeLogEnabled = ENABLE_FIRMWARE_UPGRADE_LOG
+const CMD_ENTER_BOOTLOADER = new Uint8Array([0x02, 0x01])
 const firmwareInput = ref<HTMLInputElement | null>(null)
 const selectedFirmware = ref<FirmwareImage | null>(null)
 const isBurning = ref(false)
@@ -126,12 +130,23 @@ const canBurn = computed(() => {
   return connectionState.value.isConnected && selectedFirmware.value !== null && !isBurning.value
 })
 
+const canEnterBootloader = computed(() => {
+  return connectionState.value.isConnected && !isBurning.value
+})
+
 const openFirmwarePicker = () => {
   firmwareInput.value?.click()
 }
 
 function appendLog(message: string) {
+  if (!isUpgradeLogEnabled) return
   flashLogs.value = [...flashLogs.value.slice(-19), message]
+}
+
+function toHexLog(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, '0').toUpperCase())
+    .join(' ')
 }
 
 const handleFirmwareSelected = async (event: Event) => {
@@ -196,6 +211,28 @@ const handleBurnFirmware = async () => {
   } finally {
     isBurning.value = false
   }
+}
+
+const handleEnterBootloaderMode = async () => {
+  if (!canEnterBootloader.value) return
+
+  const sent = await serialManager.send(CMD_ENTER_BOOTLOADER)
+  if (!sent) {
+    const message = '发送进入烧录模式指令失败'
+    flashProgress.value = {
+      ...flashProgress.value,
+      message,
+    }
+    appendLog(`错误: ${message}`)
+    return
+  }
+
+  const hex = toHexLog(CMD_ENTER_BOOTLOADER)
+  flashProgress.value = {
+    ...flashProgress.value,
+    message: '已发送进入烧录模式指令，请等待设备进入 IAP',
+  }
+  appendLog(`发送进入烧录模式指令: ${hex}`)
 }
 </script>
 
