@@ -11,6 +11,31 @@
           <span class="status-dot"></span>
           <span>{{ connectionState.isConnected ? '已连接' : '未连接' }}</span>
         </div>
+        <span v-if="lastUpdateTime" class="updated-at">更新于 {{ lastUpdateTime }}</span>
+        <button
+          v-if="connectionState.isConnected"
+          :class="['btn-sm', 'btn-primary', { loading: isLoading }]"
+          :disabled="isLoading"
+          @click="readRateOnce"
+        >
+          读取
+        </button>
+        <button
+          v-if="connectionState.isConnected"
+          :class="['btn-sm', 'btn-primary', { loading: isLoading }]"
+          :disabled="isLoading"
+          @click="writeRateOnce"
+        >
+          设置
+        </button>
+        <button
+          v-if="connectionState.isConnected"
+          :class="['btn-sm', 'btn-danger', { loading: isLoading }]"
+          :disabled="isLoading"
+          @click="resetRateOnce"
+        >
+          恢复默认
+        </button>
       </div>
     </div>
 
@@ -198,6 +223,22 @@
         <!-- ── 右侧：油门参数 + 可视化预览 ─────────────────── -->
         <div class="right-col">
 
+          <!-- 速度档位 -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2>速度档位</h2>
+            </div>
+            <div class="speed-selector">
+              <button
+                v-for="level in speedLevels"
+                :key="level.value"
+                :class="['speed-btn', `speed-btn--${level.value.toLowerCase()}`, { active: speedLevel === level.value }]"
+              >
+                {{ level.label }}
+              </button>
+            </div>
+          </div>
+
           <!-- 油门参数设置 -->
           <div class="panel">
             <div class="panel-header">
@@ -206,15 +247,6 @@
 
             <div class="throttle-grid">
               <div class="throttle-item">
-                <div class="throttle-visual">
-                  <div class="throttle-bar-container">
-                    <div
-                      class="throttle-bar"
-                      :style="{ width: throttleMidPercent + '%' }"
-                    ></div>
-                  </div>
-                  <div class="throttle-marker" :style="{ left: throttleMidPercent + '%' }"></div>
-                </div>
                 <div class="throttle-info">
                   <span class="throttle-label">油门中值</span>
                   <div class="param-control">
@@ -233,28 +265,6 @@
               </div>
 
               <div class="throttle-item">
-                <div class="throttle-curve">
-                  <svg viewBox="0 0 200 100" class="expo-curve-svg">
-                    <!-- 坐标系 -->
-                    <line x1="10" y1="90" x2="190" y2="90" stroke="#334155" stroke-width="1"/>
-                    <line x1="10" y1="90" x2="10" y2="10" stroke="#334155" stroke-width="1"/>
-                    <!-- 曲线 -->
-                    <path
-                      :d="expoCurvePath"
-                      fill="none"
-                      stroke="#38bdf8"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                    />
-                    <!-- 中点标记 -->
-                    <circle
-                      :cx="throttleMidX"
-                      :cy="throttleMidY"
-                      r="4"
-                      fill="#38bdf8"
-                    />
-                  </svg>
-                </div>
                 <div class="throttle-info">
                   <span class="throttle-label">油门 Expo</span>
                   <div class="param-control">
@@ -282,108 +292,154 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
+import { MSP_CMD, useMsp, encodeSetRcTuningPayload, type MspRcTuningFrame } from '@/ts/msp/msp'
+import { ENABLE_MSP_PROTOCOL } from '@/ts/msp/protocolFlags'
 
-const { getInstance, connectionState } = useSerial()
+const { connectionState } = useSerial()
+const { onRcTuningMessage, send } = useMsp()
 
 // ── 状态数据 ─────────────────────────────────────────────────
 const lastUpdateTime = ref('')
+const isLoading = ref(false)
 const txCount = ref(0)
+
+// 速度档位
+const speedLevel = ref<'SLOW' | 'MID' | 'FAST'>('MID')
+const speedLevels = [
+  { value: 'SLOW', label: 'SLOW' },
+  { value: 'MID',  label: 'MID'  },
+  { value: 'FAST', label: 'FAST' },
+] as const
 
 // Rate 参数
 const rate = reactive({
-  rollCenter: 50, rollRate: 720, rollExpo: 0,
-  pitchCenter: 50, pitchRate: 720, pitchExpo: 0,
-  yawCenter: 50, yawRate: 360, yawExpo: 0
+  rollCenter: 0, rollRate: 0, rollExpo: 0,
+  pitchCenter: 0, pitchRate: 0, pitchExpo: 0,
+  yawCenter: 0, yawRate: 0, yawExpo: 0
 })
 
 // 油门参数
 const throttle = reactive({
-  mid: 50,
+  mid: 0,
   expo: 0
 })
 
-// ── 计算属性 ─────────────────────────────────────────────────
-const throttleMidPercent = computed(() => throttle.mid)
-
-// 油门 Expo 曲线路径
-const throttleMidX = computed(() => 10 + (throttle.mid / 100) * 180)
-const throttleMidY = computed(() => {
-  const normalized = throttle.mid / 100
-  const expoFactor = throttle.expo / 100
-  const curve = normalized * normalized * expoFactor + normalized * (1 - expoFactor)
-  return 90 - curve * 80
-})
-
-const expoCurvePath = computed(() => {
-  const midX = throttleMidX.value
-  const midY = throttleMidY.value
-  return `M 10,90 Q ${midX},${90 - (90 - midY) * 0.5} 190,10`
-})
-
-// ── Rate 曲线计算 ─────────────────────────────────────────────
-function getRateCurvePath(center: number, maxRate: number, expo: number): string {
-  const points: string[] = []
-  const steps = 20
-
-  for (let i = 0; i <= steps; i++) {
-    const input = (i / steps) * 100 // 0-100
-    const normalizedInput = input / 100
-
-    // Rate 曲线公式
-    let output: number
-    const expoFactor = expo / 100
-
-    if (normalizedInput <= center / 100) {
-      // 低灵敏度区域
-      const lowInput = normalizedInput / (center / 100)
-      output = lowInput * lowInput * (center / 100) * expoFactor + lowInput * (center / 100) * (1 - expoFactor)
-    } else {
-      // 高灵敏度区域
-      const highInput = (normalizedInput - center / 100) / (1 - center / 100)
-      const lowPart = 1
-      const highPart = highInput * highInput * expoFactor + highInput * (1 - expoFactor)
-      output = lowPart + (highPart - 1) * (maxRate / 1000)
-    }
-
-    output = Math.max(0, Math.min(1, output))
-
-    const x = 20 + input * 2.6
-    const y = 170 - output * (maxRate / 720) * 80
-
-    if (i === 0) {
-      points.push(`M ${x},${y}`)
-    } else {
-      points.push(`L ${x},${y}`)
-    }
-  }
-
-  return points.join(' ')
-}
+// 保留原始 FC 字段（写回时保持不变）
+let preservedRaw: MspRcTuningFrame | null = null
 
 // ── 辅助函数 ─────────────────────────────────────────────────
-function updateThrottleMid() {
-  if (throttle.mid < 0) throttle.mid = 0
-  if (throttle.mid > 100) throttle.mid = 100
-}
+function clamp(v: number, min: number, max: number) { return Math.min(max, Math.max(min, v)) }
 
-function updateThrottleExpo() {
-  if (throttle.expo < -100) throttle.expo = -100
-  if (throttle.expo > 100) throttle.expo = 100
-}
-
+function updateThrottleMid()  { throttle.mid  = clamp(throttle.mid,  0,    100) }
+function updateThrottleExpo() { throttle.expo = clamp(throttle.expo, -100, 100) }
 function timestamp() { return new Date().toLocaleTimeString('zh-CN', { hour12: false }) }
 
-// ── 数据处理 ─────────────────────────────────────────────────
-function handleData(event: any) {
-  const chunk: Uint8Array = event.data
-  if (!chunk?.length) return
+// ── 将 FC 数据应用到界面 ─────────────────────────────────────
+function applyRcTuning(d: MspRcTuningFrame) {
+  preservedRaw = { ...d }
+
+  rate.rollCenter  = d.rcRateRoll
+  rate.rollExpo    = d.rcExpoRoll
+  rate.rollRate    = d.rateRoll
+
+  rate.pitchCenter = d.rcRatePitch
+  rate.pitchExpo   = d.rcExpoPitch
+  rate.pitchRate   = d.ratePitch
+
+  rate.yawCenter   = d.rcRateYaw
+  rate.yawExpo     = d.rcExpoYaw
+  rate.yawRate     = d.rateYaw
+
+  throttle.mid     = d.thrMid
+  throttle.expo    = d.thrExpo
+
+  // ratesType: 0=SLOW, 1=MID, 2=FAST
+  const ratesTypeMap = ['SLOW', 'MID', 'FAST'] as const
+  speedLevel.value = ratesTypeMap[d.ratesType] ?? 'MID'
+
+  lastUpdateTime.value = timestamp()
 }
 
-onMounted(() => { getInstance().addEventListener('data', handleData) })
+// ── 构建 SET 负载 ─────────────────────────────────────────────
+function buildSetRcTuningPayload(): Uint8Array {
+  const base: MspRcTuningFrame = preservedRaw ?? {
+    rcRateRoll: 50,   rcExpoRoll: 0,   rateRoll: 0,   rateLimitRoll: 720,
+    rcRatePitch: 50,  rcExpoPitch: 0,  ratePitch: 0,  rateLimitPitch: 720,
+    rcRateYaw: 50,    rcExpoYaw: 0,    rateYaw: 0,    rateLimitYaw: 360,
+    thrMid: 50,       thrExpo: 0,      thrHover: 50,
+    tpaRate: 0,       tpaBreakpoint: 0,
+    throttleLimitType: 0, throttleLimitPercent: 100,
+    ratesType: 0,
+  }
+  return encodeSetRcTuningPayload({
+    ...base,
+    rcRateRoll:    clamp(rate.rollCenter,  0, 255),
+    rcExpoRoll:    clamp(rate.rollExpo,    0, 100),
+    rateRoll:      clamp(rate.rollRate,    0, 255),
+    rcRatePitch:   clamp(rate.pitchCenter, 0, 255),
+    rcExpoPitch:   clamp(rate.pitchExpo,   0, 100),
+    ratePitch:     clamp(rate.pitchRate,   0, 255),
+    rcRateYaw:     clamp(rate.yawCenter,   0, 255),
+    rcExpoYaw:     clamp(rate.yawExpo,     0, 100),
+    rateYaw:       clamp(rate.yawRate,     0, 255),
+    thrMid:        clamp(throttle.mid,     0, 100),
+    thrExpo:       clamp(throttle.expo,    0, 100),
+  })
+}
+
+// ── 读取 / 写入 ───────────────────────────────────────────────
+async function readRateOnce() {
+  if (!ENABLE_MSP_PROTOCOL) return
+  if (!connectionState.value.isConnected) return
+  isLoading.value = true
+  const ok = await send(MSP_CMD.RC_TUNING)
+  if (ok) txCount.value++
+  isLoading.value = false
+}
+
+async function writeRateOnce() {
+  if (!ENABLE_MSP_PROTOCOL) return
+  if (!connectionState.value.isConnected) return
+  isLoading.value = true
+  const payload = buildSetRcTuningPayload()
+  const ok = await send(MSP_CMD.SET_RC_TUNING, payload)
+  if (ok) {
+    txCount.value++
+    await readRateOnce()
+  }
+  isLoading.value = false
+}
+
+async function resetRateOnce() {
+  if (!ENABLE_MSP_PROTOCOL) return
+  if (!connectionState.value.isConnected) return
+  isLoading.value = true
+  // resetIndex == 2: 恢复 RATE 默认值
+  const ok = await send(MSP_CMD.RESET_CONF, new Uint8Array([2]))
+  if (ok) {
+    txCount.value++
+    await readRateOnce()
+  }
+  isLoading.value = false
+}
+
+// ── 生命周期 ──────────────────────────────────────────────────
+let unbindRcTuning: (() => void) | null = null
+
+onMounted(() => {
+  if (!ENABLE_MSP_PROTOCOL) return
+  unbindRcTuning = onRcTuningMessage((data) => {
+    applyRcTuning(data)
+  })
+  // 进入界面后自动读取一次
+  readRateOnce()
+})
+
 onUnmounted(() => {
-  getInstance().removeEventListener('data', handleData)
+  unbindRcTuning?.()
+  unbindRcTuning = null
 })
 </script>
 
@@ -554,6 +610,31 @@ onUnmounted(() => {
   font-family: 'Consolas', monospace;
 }
 
+/* ── 速度档位 ────────────────────────────────────────────── */
+.speed-selector {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.speed-btn {
+  flex: 1;
+  padding: 8px 0;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface-100);
+  color: var(--text-disabled);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  font-family: 'Consolas', monospace;
+  letter-spacing: 0.8px;
+  cursor: default;
+  pointer-events: none;
+}
+
+.speed-btn--slow.active  { background: #1e3a2f; border-color: #34d399; color: #34d399; }
+.speed-btn--mid.active   { background: #1e2f4a; border-color: #60a5fa; color: #60a5fa; }
+.speed-btn--fast.active  { background: #3a1e1e; border-color: #f87171; color: #f87171; }
+
 /* ── 油门参数 ────────────────────────────────────────────── */
 .throttle-grid {
   display: grid;
@@ -567,50 +648,6 @@ onUnmounted(() => {
   gap: var(--spacing-md);
 }
 
-.throttle-visual {
-  position: relative;
-  height: 40px;
-  display: flex;
-  align-items: center;
-}
-
-.throttle-bar-container {
-  width: 100%;
-  height: 8px;
-  background: var(--surface-200);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.throttle-bar {
-  height: 100%;
-  background: var(--primary-500);
-  border-radius: 4px;
-  transition: width 0.2s;
-}
-
-.throttle-marker {
-  position: absolute;
-  top: 50%;
-  width: 4px;
-  height: 20px;
-  background: var(--primary-500);
-  border-radius: 2px;
-  transform: translate(-50%, -50%);
-  transition: left 0.2s;
-}
-
-.throttle-curve {
-  height: 80px;
-  background: var(--surface-100);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-xs);
-}
-
-.expo-curve-svg {
-  width: 100%;
-  height: 100%;
-}
 
 .throttle-info {
   display: flex;
@@ -712,4 +749,30 @@ onUnmounted(() => {
   height: 32px;
   background-color: var(--surface-800);
 }
+
+/* ── 按钮 (与PidSetting一致) ────────────────────────────── */
+.btn-sm {
+  padding: 5px 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+.btn-sm.btn-primary {
+  background: var(--primary-500);
+  color: #fff;
+  border-color: var(--primary-500);
+}
+.btn-sm.btn-primary:hover:not(:disabled) { background: var(--primary-600); border-color: var(--primary-600); }
+.btn-sm.btn-danger {
+  background: rgba(239,68,68,0.1);
+  color: #ef4444;
+  border-color: rgba(239,68,68,0.3);
+}
+.btn-sm.btn-danger:hover:not(:disabled) { background: rgba(239,68,68,0.2); }
+.btn-sm:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-sm.loading { opacity: 0.7; cursor: wait; }
+.updated-at { font-size: var(--font-size-sm); color: var(--text-disabled); font-family: 'Consolas', monospace; }
 </style>

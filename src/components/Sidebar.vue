@@ -1,6 +1,3 @@
-
-import Receiver from './components/receiver.vue';
-
 <template>
   <div class="sidebar">
     <nav class="sidebar-nav">
@@ -19,7 +16,7 @@ import Receiver from './components/receiver.vue';
         <a 
           href="#"
           @click.prevent="selectItem('message')"
-          :class="{ active: activeItem === 'message' }"
+          :class="{ active: activeItem === 'message', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">飞控信息</span>
@@ -30,7 +27,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('gyro')"
-          :class="{ active: activeItem === 'gyro' }"
+          :class="{ active: activeItem === 'gyro', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">陀螺仪</span>
@@ -41,7 +38,7 @@ import Receiver from './components/receiver.vue';
         <a 
           href="#"
           @click.prevent="selectItem('receiver')"
-          :class="{ active: activeItem === 'receiver' }"
+          :class="{ active: activeItem === 'receiver', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">接收机</span>
@@ -52,7 +49,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('pid')"
-          :class="{ active: activeItem === 'pid' }"
+          :class="{ active: activeItem === 'pid', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">PID调校</span>
@@ -63,7 +60,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('rate')"
-          :class="{ active: activeItem === 'rate' }"
+          :class="{ active: activeItem === 'rate', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">RATE设置</span>
@@ -74,7 +71,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('sensor')"
-          :class="{ active: activeItem === 'sensor' }"
+          :class="{ active: activeItem === 'sensor', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">传感器数据</span>
@@ -85,7 +82,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('motorTest')"
-          :class="{ active: activeItem === 'motorTest' }"
+          :class="{ active: activeItem === 'motorTest', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">电机测试</span>
@@ -95,7 +92,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('firmware')"
-          :class="{ active: activeItem === 'firmware' }"
+          :class="{ active: activeItem === 'firmware', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">固件升级</span>
@@ -106,7 +103,7 @@ import Receiver from './components/receiver.vue';
         <a
           href="#"
           @click.prevent="selectItem('devSerial')"
-          :class="{ active: activeItem === 'devSerial' }"
+          :class="{ active: activeItem === 'devSerial', disabled: !isConnected }"
           class="nav-item"
         >
           <span class="nav-label">开发调试</span>
@@ -122,10 +119,14 @@ import Receiver from './components/receiver.vue';
 </template>
 
 <script setup lang="ts">
-defineProps({
+const props = defineProps({
   activeItem: {
     type: String,
     default: 'welcome'
+  },
+  isConnected: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -134,6 +135,7 @@ const emit = defineEmits<{
 }>()
 
 const selectItem = (item: string) => {
+  if (!props.isConnected && item !== 'welcome') return
   emit('select', item)
 }
 </script>
@@ -159,15 +161,6 @@ const selectItem = (item: string) => {
   margin-bottom: var(--spacing-xl);
 }
 
-.nav-section h4 {
-  margin: 0 var(--spacing-md) var(--spacing-sm) var(--spacing-md);
-  font-size: var(--font-size-sm);
-  color: var(--surface-600);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
 .nav-item {
   display: flex;
   align-items: center;
@@ -190,17 +183,13 @@ const selectItem = (item: string) => {
     background-color: var(--primary-500);
     color: var(--text-on-primary);
     font-weight: 600;
-
-    .nav-icon {
-      transform: scale(1.2);
-    }
   }
-}
 
-.nav-icon {
-  font-size: 18px;
-  flex-shrink: 0;
-  transition: transform var(--transition-base);
+  &.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
 }
 
 .nav-label {
@@ -245,16 +234,8 @@ const selectItem = (item: string) => {
     width: 200px;
   }
 
-  .sidebar-header h3 {
-    font-size: var(--font-size-base);
-  }
-
   .nav-label {
     display: none;
-  }
-
-  .nav-icon {
-    margin: 0 auto;
   }
 
   .sidebar-nav {

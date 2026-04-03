@@ -173,6 +173,38 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
 
             sbufWriteU16(dst, (uint16_t)(getBatteryVoltage()*100)); // in 0.01V steps
             break;
+    case MSP_RC_TUNING:
+        sbufWriteU8(dst, currentControlRateProfile->rcRates[FD_ROLL]);
+        sbufWriteU8(dst, currentControlRateProfile->rcExpo[FD_ROLL]);
+        for (int i = 0 ; i < 3; i++) {
+            sbufWriteU8(dst, currentControlRateProfile->rates[i]); // R,P,Y see flight_dynamics_index_t
+        }
+        sbufWriteU8(dst, 0);   // was currentControlRateProfile->tpa_rate
+        sbufWriteU8(dst, currentControlRateProfile->thrMid8);
+        sbufWriteU8(dst, currentControlRateProfile->thrExpo8);
+        sbufWriteU16(dst, 0);   // was currentControlRateProfile->tpa_breakpoint
+        sbufWriteU8(dst, currentControlRateProfile->rcExpo[FD_YAW]);
+        sbufWriteU8(dst, currentControlRateProfile->rcRates[FD_YAW]);
+        sbufWriteU8(dst, currentControlRateProfile->rcRates[FD_PITCH]);
+        sbufWriteU8(dst, currentControlRateProfile->rcExpo[FD_PITCH]);
+
+        // added in 1.41
+        sbufWriteU8(dst, currentControlRateProfile->throttle_limit_type);
+        sbufWriteU8(dst, currentControlRateProfile->throttle_limit_percent);
+
+        // added in 1.42
+        sbufWriteU16(dst, currentControlRateProfile->rate_limit[FD_ROLL]);
+        sbufWriteU16(dst, currentControlRateProfile->rate_limit[FD_PITCH]);
+        sbufWriteU16(dst, currentControlRateProfile->rate_limit[FD_YAW]);
+
+        // added in 1.43
+        sbufWriteU8(dst, currentControlRateProfile->rates_type);
+
+        // added in 1.47
+        sbufWriteU8(dst, currentControlRateProfile->thrHover8);
+
+        break;
+        
         default:
             unsupportedCommand = true;
         }
@@ -210,6 +242,96 @@ static mspResult_e mspCommonProcessInCommand(mspDescriptor_t srcDesc, int16_t cm
             for (int i = 0; i < getMotorCount(); i++) {
                 motor_disarmed[i] = motorConvertFromExternal(sbufReadU16(src));
             }
+            break;
+        case MSP_SET_RC_TUNING:
+            if (sbufBytesRemaining(src) >= 10) {
+                uint8_t rcRateRoll = sbufReadU8(src);
+                uint8_t rcExpoRoll = sbufReadU8(src);
+                uint8_t rateRoll = sbufReadU8(src);
+                uint8_t ratePitch = sbufReadU8(src);
+                uint8_t rateYaw = sbufReadU8(src);
+                sbufReadU8(src);    // tpa_rate (not used)
+                uint8_t thrMid = sbufReadU8(src);
+                uint8_t thrExpo = sbufReadU8(src);
+                sbufReadU16(src);   // tpa_breakpoint (not used)
+
+                uint8_t rcExpoYaw = rcExpoRoll;
+                uint8_t rcRateYaw = rcRateRoll;
+                uint8_t rcRatePitch = rcRateRoll;
+                uint8_t rcExpoPitch = rcExpoRoll;
+
+                if (sbufBytesRemaining(src) >= 1) {
+                    rcExpoYaw = sbufReadU8(src);
+                }
+
+                if (sbufBytesRemaining(src) >= 1) {
+                    rcRateYaw = sbufReadU8(src);
+                }
+
+                if (sbufBytesRemaining(src) >= 1) {
+                    rcRatePitch = sbufReadU8(src);
+                }
+
+                if (sbufBytesRemaining(src) >= 1) {
+                    rcExpoPitch = sbufReadU8(src);
+                }
+
+                // version 1.41: throttle_limit (not used)
+                if (sbufBytesRemaining(src) >= 2) {
+                    sbufReadU8(src);
+                    sbufReadU8(src);
+                }
+
+                // version 1.42: rate_limit (not used)
+                if (sbufBytesRemaining(src) >= 6) {
+                    sbufReadU16(src);
+                    sbufReadU16(src);
+                    sbufReadU16(src);
+                }
+
+                // version 1.43: rates_type (ignored)
+                if (sbufBytesRemaining(src) >= 1) {
+                    sbufReadU8(src);
+                }
+
+                // version 1.47: thrHover8 (not used)
+                if (sbufBytesRemaining(src) >= 1) {
+                    sbufReadU8(src);
+                }
+
+                /* Update runtime rcRateProfile */
+                rcRateProfile.rcRates[ROLL] = rcRateRoll;
+                rcRateProfile.rcExpo[ROLL] = rcExpoRoll;
+                rcRateProfile.rates[ROLL] = rateRoll;
+                rcRateProfile.rates[PITCH] = ratePitch;
+                rcRateProfile.rates[YAW] = rateYaw;
+                rcRateProfile.rcExpo[YAW] = rcExpoYaw;
+                rcRateProfile.rcRates[YAW] = rcRateYaw;
+                rcRateProfile.rcRates[PITCH] = rcRatePitch;
+                rcRateProfile.rcExpo[PITCH] = rcExpoPitch;
+
+                thrMid8 = thrMid;
+                thrExpo8 = thrExpo;
+
+                rateWriteToFlash();
+                break;
+        case MSP_RESET_CONF:
+            if (sbufBytesRemaining(src) >= 1) {
+                // Added in MSP API 1.42
+                const uint8_t resetIndex = sbufReadU8(src);
+                
+                if (resetIndex == 1) {
+                    /* Reset PID parameters to default values */
+                    ratePidReset();
+                    pidWriteToFlash();
+                } else if (resetIndex == 2) {
+                    /* Reset RATE parameters to default values */
+                    rcResetParam();
+                    rateWriteToFlash();
+                }
+                /* resetIndex == 0: do nothing */
+            }
+
             break;
         default:
             return MSP_RESULT_CMD_UNKNOWN;

@@ -114,7 +114,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
-import { MSP_CMD, useMsp } from '@/ts/information/msp'
+import { MSP_CMD, useMsp } from '@/ts/msp/msp'
 
 const { getInstance, connectionState } = useSerial()
 
