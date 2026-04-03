@@ -15,9 +15,11 @@ import Firmware from '@/components/Firmware.vue'
 import Rate from '@/components/RateSetting.vue'
 
 type PageType = 'welcome' | 'message' | 'receiver' | 'pid' | 'devSerial' | 'gyro' | 'rate' | 'sensor' | 'motorTest' | 'firmware'
+type NavigationLockMode = 'none' | 'connectedFromWelcome' | 'connectedFromFirmware' | 'connectedFromDevSerial'
 
 const activePage = ref<PageType>('welcome')
 const currentComponent = ref(shallowRef(welcome));
+const navigationLockMode = ref<NavigationLockMode>('none')
 
 // 获取串口实例（状态由 useSerial 内部自动管理）
 const { connectionState } = useSerial()
@@ -65,8 +67,23 @@ const handleSidebarSelect = (item: string) => {
  * 串口连接成功时的处理
  */
 const handleSerialConnected = (_port: string) => {
-  // 连接状态已由 useSerial 内部管理
-  // 不自动切换页面，保持在当前页面（通常是欢迎界面）
+  // 连接状态已由 useSerial 内部管理，这里只记录连接时所在页面并施加导航限制。
+  if (activePage.value === 'firmware') {
+    navigationLockMode.value = 'connectedFromFirmware'
+    return
+  }
+
+  if (activePage.value === 'devSerial') {
+    navigationLockMode.value = 'connectedFromDevSerial'
+    return
+  }
+
+  if (activePage.value === 'welcome') {
+    navigationLockMode.value = 'connectedFromWelcome'
+    return
+  }
+
+  navigationLockMode.value = 'none'
 }
 
 /**
@@ -74,6 +91,7 @@ const handleSerialConnected = (_port: string) => {
  */
 const handleSerialDisconnected = () => {
   // 断连后回到欢迎页，避免停留在需要串口的模块
+  navigationLockMode.value = 'none'
   activePage.value = 'welcome'
   currentComponent.value = welcome
 }
@@ -108,6 +126,7 @@ const handleSerialError = (error: string) => {
       <Sidebar 
         :activeItem="activePage"
         :isConnected="connectionState.isConnected"
+        :navigationLockMode="navigationLockMode"
         @select="handleSidebarSelect"
       />
 
