@@ -265,8 +265,13 @@ function calculatePercent(sentBytes: number, totalBytes: number): number {
 
 function crc16Ccitt(data: Uint8Array): number {
 	let crc = 0
+	const effectiveLength = Math.max(0, data.length - 1)
 
-	for (const byte of data) {
+	// TEMP: 为兼容当前飞控接收端的校验实现（总长度少校验 1 个 byte），
+	// 此处仅对前 effectiveLength 个 byte 计算 CRC。
+	// 恢复飞控接收端后，请改回对完整 data 进行计算。
+	for (let i = 0; i < effectiveLength; i++) {
+		const byte = data[i]!
 		crc ^= byte << 8
 		for (let bit = 0; bit < 8; bit++) {
 			if ((crc & 0x8000) !== 0) {
