@@ -294,8 +294,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
-import { MSP_CMD, useMsp, encodeSetRcTuningPayload, type MspRcTuningFrame } from '@/ts/information/msp'
-import { ENABLE_MSP_PROTOCOL } from '@/ts/information/protocolFlags'
+import { MSP_CMD, useMsp, encodeSetRcTuningPayload, type MspRcTuningFrame } from '@/ts/msp/msp'
+import { ENABLE_MSP_PROTOCOL } from '@/ts/msp/protocolFlags'
 
 const { connectionState } = useSerial()
 const { onRcTuningMessage, send } = useMsp()

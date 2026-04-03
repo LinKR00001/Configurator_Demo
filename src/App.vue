@@ -65,9 +65,8 @@ const handleSidebarSelect = (item: string) => {
  * 串口连接成功时的处理
  */
 const handleSerialConnected = (_port: string) => {
-  // 连接状态已由 useSerial 内部管理，这里只需切换页面
-  activePage.value = 'message'
-  currentComponent.value = Message;
+  // 连接状态已由 useSerial 内部管理
+  // 不自动切换页面，保持在当前页面（通常是欢迎界面）
 }
 
 /**
