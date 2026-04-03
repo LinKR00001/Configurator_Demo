@@ -9,16 +9,9 @@
       <div class="header-right">
         <div :class="['status-indicator', isConnected ? 'connected' : 'disconnected']">
           <span class="status-dot"></span>
-          <span v-if="isConnected">已连接 · {{ BAUD_RATE.toLocaleString() }} baud</span>
-          <span v-else>未连接</span>
+          <span v-if="isConnected">已连接 · {{ connectionState.baudRate.toLocaleString() }} baud</span>
+          <span v-else>未连接（请使用右上角串口连接）</span>
         </div>
-        <button
-          :class="['conn-btn', isConnected ? 'btn-danger' : 'btn-primary']"
-          :disabled="isConnecting"
-          @click="isConnected ? disconnect() : connect()"
-        >
-          {{ isConnecting ? '连接中...' : isConnected ? '断开' : '连接' }}
-        </button>
       </div>
     </div>
 
@@ -97,27 +90,25 @@
         <pre class="terminal-body" ref="terminalBody">{{ log }}</pre>
       </div>
       <div v-else class="terminal terminal-empty">
-        暂无日志，连接设备后发送指令将在此显示
+        暂无日志，使用右上角连接设备后发送指令将在此显示
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onUnmounted } from 'vue'
-import { SerialManager } from '@/composables/useSerial'
+import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
+import { useSerial } from '@/composables/useSerial'
 
-// 私有串口实例，不使用全局实例，避免触发 useFCInfo 定时轮询
-const BAUD_RATE = 420000
-const devSerial = new SerialManager({ baudRate: BAUD_RATE })
+const { getInstance, connectionState } = useSerial()
+const serialManager = getInstance()
 
 // 指令定义
 const CMD_FLASH          = new Uint8Array([0x02, 0x01])
 const CMD_READ_BLACKBOX  = new Uint8Array([0x01, 0x01, 0x01])
 const CMD_CLEAR_BLACKBOX = new Uint8Array([0x01, 0x01, 0x02])
 
-const isConnected = ref(false)
-const isConnecting = ref(false)
+const isConnected = computed(() => connectionState.value.isConnected)
 const log = ref('')
 const terminalBody = ref<HTMLElement | null>(null)
 
@@ -147,22 +138,6 @@ watch(log, () => {
   })
 })
 
-// ── 连接管理 ─────────────────────────────────────────────────
-
-async function connect() {
-  isConnecting.value = true
-  const ok = await devSerial.connect()
-  isConnecting.value = false
-  if (!ok) {
-    log.value += `[${timestamp()}] [ERR] 连接失败\n`
-  }
-}
-
-async function disconnect() {
-  stopBlackboxRead()
-  await devSerial.disconnect()
-}
-
 // ── 指令发送 ─────────────────────────────────────────────────
 
 function toHexStr(bytes: Uint8Array): string {
@@ -178,7 +153,7 @@ function timestamp(): string {
 }
 
 async function send(cmd: Uint8Array, label: string) {
-  const ok = await devSerial.send(cmd)
+  const ok = await serialManager.send(cmd)
   if (ok) {
     log.value += `[${timestamp()}] [TX] ${label}  ${toHexLog(cmd)}\n`
   } else {
@@ -192,7 +167,7 @@ async function clearBlackbox() {
   clearResponseBuf = ''
   isClearingBlackbox.value = true
 
-  const ok = await devSerial.send(CMD_CLEAR_BLACKBOX)
+  const ok = await serialManager.send(CMD_CLEAR_BLACKBOX)
   if (!ok) {
     log.value += `[${timestamp()}] [ERR] 清除黑匣子 发送失败\n`
     isClearingBlackbox.value = false
@@ -210,7 +185,7 @@ async function readBlackbox() {
   readBytesCount.value = 0
   lastDataTime = 0
 
-  const ok = await devSerial.send(CMD_READ_BLACKBOX)
+  const ok = await serialManager.send(CMD_READ_BLACKBOX)
   if (!ok) {
     log.value += `[${timestamp()}] [ERR] 读取黑匣子 发送失败\n`
     isReadingBlackbox.value = false
@@ -312,27 +287,24 @@ const handleData = (event: any) => {
 }
 
 const handleConnected = () => {
-  isConnected.value = true
-  log.value += `[${timestamp()}] [INFO] 已连接，波特率 ${BAUD_RATE.toLocaleString()}\n`
+  log.value += `[${timestamp()}] [INFO] 已连接，波特率 ${connectionState.value.baudRate.toLocaleString()}\n`
 }
 
 const handleDisconnected = () => {
-  isConnected.value = false
   if (isReadingBlackbox.value) stopBlackboxRead()
   if (isClearingBlackbox.value) { isClearingBlackbox.value = false; clearResponseBuf = '' }
   log.value += `[${timestamp()}] [INFO] 已断开连接\n`
 }
 
-devSerial.addEventListener('connected', handleConnected)
-devSerial.addEventListener('disconnected', handleDisconnected)
-devSerial.addEventListener('data', handleData)
+serialManager.addEventListener('connected', handleConnected)
+serialManager.addEventListener('disconnected', handleDisconnected)
+serialManager.addEventListener('data', handleData)
 
 onUnmounted(() => {
   stopBlackboxRead()
-  devSerial.removeEventListener('connected', handleConnected)
-  devSerial.removeEventListener('disconnected', handleDisconnected)
-  devSerial.removeEventListener('data', handleData)
-  devSerial.cleanup()
+  serialManager.removeEventListener('connected', handleConnected)
+  serialManager.removeEventListener('disconnected', handleDisconnected)
+  serialManager.removeEventListener('data', handleData)
 })
 </script>
 
@@ -370,10 +342,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
-  flex-shrink: 0;
-}
-
-.conn-btn {
   flex-shrink: 0;
 }
 
