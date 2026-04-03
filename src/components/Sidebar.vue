@@ -5,7 +5,7 @@
         <a 
           href="#"
           @click.prevent="selectItem('welcome')"
-          :class="{ active: activeItem === 'welcome' }"
+          :class="{ active: activeItem === 'welcome', disabled: isNavItemDisabled('welcome') }"
           class="nav-item"
         >
           <span class="nav-label">欢迎</span>
@@ -16,7 +16,7 @@
         <a 
           href="#"
           @click.prevent="selectItem('message')"
-          :class="{ active: activeItem === 'message', disabled: !isConnected }"
+          :class="{ active: activeItem === 'message', disabled: isNavItemDisabled('message') }"
           class="nav-item"
         >
           <span class="nav-label">飞控信息</span>
@@ -27,7 +27,7 @@
         <a
           href="#"
           @click.prevent="selectItem('gyro')"
-          :class="{ active: activeItem === 'gyro', disabled: !isConnected }"
+          :class="{ active: activeItem === 'gyro', disabled: isNavItemDisabled('gyro') }"
           class="nav-item"
         >
           <span class="nav-label">陀螺仪</span>
@@ -38,7 +38,7 @@
         <a 
           href="#"
           @click.prevent="selectItem('receiver')"
-          :class="{ active: activeItem === 'receiver', disabled: !isConnected }"
+          :class="{ active: activeItem === 'receiver', disabled: isNavItemDisabled('receiver') }"
           class="nav-item"
         >
           <span class="nav-label">接收机</span>
@@ -49,7 +49,7 @@
         <a
           href="#"
           @click.prevent="selectItem('pid')"
-          :class="{ active: activeItem === 'pid', disabled: !isConnected }"
+          :class="{ active: activeItem === 'pid', disabled: isNavItemDisabled('pid') }"
           class="nav-item"
         >
           <span class="nav-label">PID调校</span>
@@ -60,7 +60,7 @@
         <a
           href="#"
           @click.prevent="selectItem('rate')"
-          :class="{ active: activeItem === 'rate', disabled: !isConnected }"
+          :class="{ active: activeItem === 'rate', disabled: isNavItemDisabled('rate') }"
           class="nav-item"
         >
           <span class="nav-label">RATE设置</span>
@@ -71,7 +71,7 @@
         <a
           href="#"
           @click.prevent="selectItem('sensor')"
-          :class="{ active: activeItem === 'sensor', disabled: !isConnected }"
+          :class="{ active: activeItem === 'sensor', disabled: isNavItemDisabled('sensor') }"
           class="nav-item"
         >
           <span class="nav-label">传感器数据</span>
@@ -82,7 +82,7 @@
         <a
           href="#"
           @click.prevent="selectItem('motorTest')"
-          :class="{ active: activeItem === 'motorTest', disabled: !isConnected }"
+          :class="{ active: activeItem === 'motorTest', disabled: isNavItemDisabled('motorTest') }"
           class="nav-item"
         >
           <span class="nav-label">电机测试</span>
@@ -92,7 +92,7 @@
         <a
           href="#"
           @click.prevent="selectItem('firmware')"
-          :class="{ active: activeItem === 'firmware', disabled: !isConnected }"
+          :class="{ active: activeItem === 'firmware', disabled: isNavItemDisabled('firmware') }"
           class="nav-item"
         >
           <span class="nav-label">固件升级</span>
@@ -103,7 +103,7 @@
         <a
           href="#"
           @click.prevent="selectItem('devSerial')"
-          :class="{ active: activeItem === 'devSerial', disabled: !isConnected }"
+          :class="{ active: activeItem === 'devSerial', disabled: isNavItemDisabled('devSerial') }"
           class="nav-item"
         >
           <span class="nav-label">开发调试</span>
@@ -119,6 +119,20 @@
 </template>
 
 <script setup lang="ts">
+type NavigationItem =
+  | 'welcome'
+  | 'message'
+  | 'gyro'
+  | 'receiver'
+  | 'pid'
+  | 'rate'
+  | 'sensor'
+  | 'motorTest'
+  | 'firmware'
+  | 'devSerial'
+
+type NavigationLockMode = 'none' | 'connectedFromWelcome' | 'connectedFromFirmware' | 'connectedFromDevSerial'
+
 const props = defineProps({
   activeItem: {
     type: String,
@@ -127,6 +141,10 @@ const props = defineProps({
   isConnected: {
     type: Boolean,
     default: false
+  },
+  navigationLockMode: {
+    type: String,
+    default: 'none'
   }
 })
 
@@ -134,8 +152,29 @@ const emit = defineEmits<{
   select: [item: string]
 }>()
 
-const selectItem = (item: string) => {
-  if (!props.isConnected && item !== 'welcome') return
+const isNavItemDisabled = (item: NavigationItem): boolean => {
+  if (!props.isConnected) {
+    return !['welcome', 'firmware', 'devSerial'].includes(item)
+  }
+
+  const lockMode = props.navigationLockMode as NavigationLockMode
+  if (lockMode === 'connectedFromWelcome') {
+    return item === 'firmware' || item === 'devSerial'
+  }
+
+  if (lockMode === 'connectedFromFirmware') {
+    return item !== 'firmware'
+  }
+
+  if (lockMode === 'connectedFromDevSerial') {
+    return item !== 'devSerial'
+  }
+
+  return false
+}
+
+const selectItem = (item: NavigationItem) => {
+  if (isNavItemDisabled(item)) return
   emit('select', item)
 }
 </script>
