@@ -17,6 +17,7 @@ const BOOTLOADER_COMMAND = {
 } as const
 
 export type FirmwareFlashTarget = keyof typeof BOOTLOADER_COMMAND
+export type FirmwareProtocolVersion = 'v1' | 'v2'
 
 export interface FirmwareFlashProgress {
 	stage: 'idle' | 'handshake' | 'transferring' | 'finalizing' | 'completed'
@@ -30,6 +31,7 @@ export interface FirmwareFlashProgress {
 
 export interface FirmwareFlashOptions {
 	target?: FirmwareFlashTarget
+	protocolVersion?: FirmwareProtocolVersion
 	handshakeTimeoutMs?: number
 	responseTimeoutMs?: number
 	onProgress?: (progress: FirmwareFlashProgress) => void
@@ -47,6 +49,7 @@ export async function flashFirmwareImage(
 	}
 
 	const target = options.target ?? 'main'
+	const protocolVersion = options.protocolVersion ?? 'v2'
 	const handshakeTimeoutMs = options.handshakeTimeoutMs ?? 5000
 	const responseTimeoutMs = options.responseTimeoutMs ?? 2000
 	const queue = new SerialByteQueue()
@@ -68,6 +71,7 @@ export async function flashFirmwareImage(
 			totalBytes: image.size,
 			percent: 0,
 		})
+		options.onLog?.(`当前烧录协议: ${protocolVersion.toUpperCase()}`)
 		options.onLog?.(`发送 IAP 入口命令: 0x${BOOTLOADER_COMMAND[target].toString(16).toUpperCase()}`)
 
 		const entered = await serialManager.send(new Uint8Array([BOOTLOADER_COMMAND[target]]))
@@ -84,7 +88,7 @@ export async function flashFirmwareImage(
 			throwIfAborted(options.signal)
 
 			const packetNumber = (packetIndex + 1) & 0xff
-			const packet = buildDataPacket(packetNumber, slicePacketPayload(image.bytes, packetIndex))
+			const packet = buildDataPacket(packetNumber, slicePacketPayload(image.bytes, packetIndex), protocolVersion)
 
 			reportProgress(options, {
 				stage: 'transferring',
@@ -216,14 +220,18 @@ class SerialByteQueue {
 	}
 }
 
-function buildDataPacket(packetNumber: number, payload: Uint8Array): Uint8Array {
+function buildDataPacket(
+	packetNumber: number,
+	payload: Uint8Array,
+	protocolVersion: FirmwareProtocolVersion,
+): Uint8Array {
 	const packet = new Uint8Array(3 + XMODEM_PACKET_SIZE + 2)
 	packet[0] = XMODEM_STX
 	packet[1] = packetNumber
 	packet[2] = 0xff - packetNumber
 	packet.set(payload, 3)
 
-	const crc = crc16Ccitt(payload)
+	const crc = crc16Ccitt(payload, protocolVersion)
 	packet[3 + XMODEM_PACKET_SIZE] = (crc >> 8) & 0xff
 	packet[3 + XMODEM_PACKET_SIZE + 1] = crc & 0xff
 	return packet
@@ -263,13 +271,12 @@ function calculatePercent(sentBytes: number, totalBytes: number): number {
 	return Math.max(0, Math.min(100, Math.round((sentBytes / totalBytes) * 100)))
 }
 
-function crc16Ccitt(data: Uint8Array): number {
+function crc16Ccitt(data: Uint8Array, protocolVersion: FirmwareProtocolVersion): number {
 	let crc = 0
-	const effectiveLength = Math.max(0, data.length - 1)
+	const effectiveLength = protocolVersion === 'v1'
+		? Math.max(0, data.length - 1)
+		: data.length
 
-	// TEMP: 为兼容当前飞控接收端的校验实现（总长度少校验 1 个 byte），
-	// 此处仅对前 effectiveLength 个 byte 计算 CRC。
-	// 恢复飞控接收端后，请改回对完整 data 进行计算。
 	for (let i = 0; i < effectiveLength; i++) {
 		const byte = data[i]!
 		crc ^= byte << 8

@@ -24,6 +24,13 @@
         accept=".bin"
         @change="handleFirmwareSelected"
       >
+      <label class="protocol-select-group">
+        <span class="protocol-select-label">协议版本</span>
+        <select v-model="selectedProtocolVersion" class="protocol-select" :disabled="isBurning">
+          <option value="v2">V2 协议</option>
+          <option value="v1">V1 协议</option>
+        </select>
+      </label>
       <button class="btn btn-primary" :disabled="isBurning" @click="openFirmwarePicker">加载固件</button>
       <button
         class="btn btn-danger"
@@ -103,7 +110,7 @@
 import { computed, ref } from 'vue'
 import { useSerial } from '@/composables/useSerial'
 import { createEmptyFirmwareMetadata, loadFirmwareBinary, type FirmwareImage } from '@/ts/firmware/binLoader'
-import { flashFirmwareImage, type FirmwareFlashProgress } from '@/ts/firmware/firmwareComm'
+import { flashFirmwareImage, type FirmwareFlashProgress, type FirmwareProtocolVersion } from '@/ts/firmware/firmwareComm'
 import { ENABLE_FIRMWARE_UPGRADE_LOG } from '@/ts/msp/protocolFlags'
 
 const { getInstance, connectionState } = useSerial()
@@ -112,6 +119,7 @@ const isUpgradeLogEnabled = ENABLE_FIRMWARE_UPGRADE_LOG
 const CMD_ENTER_BOOTLOADER = new Uint8Array([0x02, 0x01])
 const firmwareInput = ref<HTMLInputElement | null>(null)
 const selectedFirmware = ref<FirmwareImage | null>(null)
+const selectedProtocolVersion = ref<FirmwareProtocolVersion>('v2')
 const isBurning = ref(false)
 const flashLogs = ref<string[]>([])
 
@@ -194,6 +202,7 @@ const handleBurnFirmware = async () => {
   try {
     await flashFirmwareImage(serialManager, selectedFirmware.value, {
       target: 'main',
+      protocolVersion: selectedProtocolVersion.value,
       onProgress: (progress) => {
         flashProgress.value = progress
       },
@@ -275,8 +284,29 @@ const handleEnterBootloaderMode = async () => {
 
 .action-row {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
+}
+
+.protocol-select-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.protocol-select-label {
+  white-space: nowrap;
+}
+
+.protocol-select {
+  min-width: 120px;
+  height: 28px;
+  padding: 0 var(--spacing-md);
 }
 
 .flash-status-card {
@@ -429,6 +459,11 @@ const handleEnterBootloaderMode = async () => {
 @media (max-width: 768px) {
   .action-row {
     flex-direction: column;
+    align-items: stretch;
+  }
+
+  .protocol-select-group {
+    justify-content: space-between;
   }
 
   .firmware-main-grid {
