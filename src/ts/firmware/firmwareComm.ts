@@ -48,7 +48,7 @@ export async function flashFirmwareImage(
 		throw new Error('串口未连接，无法开始烧写')
 	}
 
-	const target = options.target ?? 'main'
+	const target = resolveFlashTarget(image, options.target)
 	const protocolVersion = options.protocolVersion ?? 'v2'
 	const handshakeTimeoutMs = options.handshakeTimeoutMs ?? 5000
 	const responseTimeoutMs = options.responseTimeoutMs ?? 2000
@@ -269,6 +269,22 @@ function calculatePercent(sentBytes: number, totalBytes: number): number {
 		return 0
 	}
 	return Math.max(0, Math.min(100, Math.round((sentBytes / totalBytes) * 100)))
+}
+
+function resolveFlashTarget(
+	image: FirmwareImage,
+	fallbackTarget?: FirmwareFlashTarget,
+): FirmwareFlashTarget {
+	switch (image.metadata.firmwareType) {
+		case '飞控板':
+			return 'main'
+		case '传感器板':
+			return 'sensorV2'
+		case '图传板':
+			return 'osd'
+		default:
+			return fallbackTarget ?? 'main'
+	}
 }
 
 function crc16Ccitt(data: Uint8Array, protocolVersion: FirmwareProtocolVersion): number {
