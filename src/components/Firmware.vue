@@ -24,7 +24,21 @@
         accept=".bin"
         @change="handleFirmwareSelected"
       >
+      <label class="protocol-select-group">
+        <span class="protocol-select-label">协议版本</span>
+        <select v-model="selectedProtocolVersion" class="protocol-select" :disabled="isBurning">
+          <option value="v2">V2 协议</option>
+          <option value="v1">V1 协议</option>
+        </select>
+      </label>
       <button class="btn btn-primary" :disabled="isBurning" @click="openFirmwarePicker">加载固件</button>
+      <button
+        class="btn btn-danger"
+        :disabled="!canEnterBootloader"
+        @click="handleEnterBootloaderMode"
+      >
+        进入烧录模式
+      </button>
       <button
         class="btn btn-danger"
         :disabled="!canBurn"
@@ -78,7 +92,7 @@
           </div>
         </div>
 
-        <section v-if="flashLogs.length" class="flash-log panel">
+        <section v-if="isUpgradeLogEnabled && flashLogs.length" class="flash-log panel">
           <div class="panel-header">
             <h2>升级日志</h2>
           </div>
@@ -89,12 +103,6 @@
       </aside>
     </div>
 
-    <!-- 未连接提示 -->
-    <div v-if="!connectionState.isConnected" class="not-connected">
-      <span class="not-connected-icon">○</span>
-      <p>请先通过顶部串口面板连接飞控</p>
-    </div>
-
   </div>
 </template>
 
@@ -102,12 +110,16 @@
 import { computed, ref } from 'vue'
 import { useSerial } from '@/composables/useSerial'
 import { createEmptyFirmwareMetadata, loadFirmwareBinary, type FirmwareImage } from '@/ts/firmware/binLoader'
-import { flashFirmwareImage, type FirmwareFlashProgress } from '@/ts/firmware/firmwareComm'
+import { flashFirmwareImage, type FirmwareFlashProgress, type FirmwareProtocolVersion } from '@/ts/firmware/firmwareComm'
+import { ENABLE_FIRMWARE_UPGRADE_LOG } from '@/ts/msp/protocolFlags'
 
 const { getInstance, connectionState } = useSerial()
 const serialManager = getInstance()
+const isUpgradeLogEnabled = ENABLE_FIRMWARE_UPGRADE_LOG
+const CMD_ENTER_BOOTLOADER = new Uint8Array([0x02, 0x01])
 const firmwareInput = ref<HTMLInputElement | null>(null)
 const selectedFirmware = ref<FirmwareImage | null>(null)
+const selectedProtocolVersion = ref<FirmwareProtocolVersion>('v2')
 const isBurning = ref(false)
 const flashLogs = ref<string[]>([])
 
@@ -126,12 +138,23 @@ const canBurn = computed(() => {
   return connectionState.value.isConnected && selectedFirmware.value !== null && !isBurning.value
 })
 
+const canEnterBootloader = computed(() => {
+  return connectionState.value.isConnected && !isBurning.value
+})
+
 const openFirmwarePicker = () => {
   firmwareInput.value?.click()
 }
 
 function appendLog(message: string) {
+  if (!isUpgradeLogEnabled) return
   flashLogs.value = [...flashLogs.value.slice(-19), message]
+}
+
+function toHexLog(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, '0').toUpperCase())
+    .join(' ')
 }
 
 const handleFirmwareSelected = async (event: Event) => {
@@ -179,6 +202,7 @@ const handleBurnFirmware = async () => {
   try {
     await flashFirmwareImage(serialManager, selectedFirmware.value, {
       target: 'main',
+      protocolVersion: selectedProtocolVersion.value,
       onProgress: (progress) => {
         flashProgress.value = progress
       },
@@ -196,6 +220,28 @@ const handleBurnFirmware = async () => {
   } finally {
     isBurning.value = false
   }
+}
+
+const handleEnterBootloaderMode = async () => {
+  if (!canEnterBootloader.value) return
+
+  const sent = await serialManager.send(CMD_ENTER_BOOTLOADER)
+  if (!sent) {
+    const message = '发送进入烧录模式指令失败'
+    flashProgress.value = {
+      ...flashProgress.value,
+      message,
+    }
+    appendLog(`错误: ${message}`)
+    return
+  }
+
+  const hex = toHexLog(CMD_ENTER_BOOTLOADER)
+  flashProgress.value = {
+    ...flashProgress.value,
+    message: '已发送进入烧录模式指令，请等待设备进入 IAP',
+  }
+  appendLog(`发送进入烧录模式指令: ${hex}`)
 }
 </script>
 
@@ -238,8 +284,29 @@ const handleBurnFirmware = async () => {
 
 .action-row {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
+}
+
+.protocol-select-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.protocol-select-label {
+  white-space: nowrap;
+}
+
+.protocol-select {
+  min-width: 120px;
+  height: 28px;
+  padding: 0 var(--spacing-md);
 }
 
 .flash-status-card {
@@ -392,6 +459,11 @@ const handleBurnFirmware = async () => {
 @media (max-width: 768px) {
   .action-row {
     flex-direction: column;
+    align-items: stretch;
+  }
+
+  .protocol-select-group {
+    justify-content: space-between;
   }
 
   .firmware-main-grid {
