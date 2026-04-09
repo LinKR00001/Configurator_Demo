@@ -1,8 +1,13 @@
 const DEFAULT_TEXT = '未知'
 const XMODEM_PACKET_SIZE = 1024
 const FIRMWARE_FOOTER_MAGIC = 0x5a
-const FIRMWARE_FOOTER_FORMAT_VERSION = 0x01
 const FIRMWARE_FOOTER_SIZE = 12
+
+const FIRMWARE_TYPE_MAP: Record<number, string> = {
+	0x01: '飞控板',
+	0x03: '传感器板',
+	0x05: '图传板',
+}
 
 const TARGET_NAME_MAP: Record<number, string> = {
 	1: 'Cetus_FC',
@@ -24,6 +29,7 @@ export interface FirmwareMetadata {
 }
 
 interface EmbeddedFirmwareFooter {
+	firmwareType: string
 	targetId: number
 	targetBoard: string
 	firmwareVersion: string
@@ -76,7 +82,7 @@ export function inferFirmwareMetadata(fileName: string, footer?: EmbeddedFirmwar
 
 	return {
 		fileName,
-		firmwareType,
+		firmwareType: footer?.firmwareType ?? firmwareType,
 		targetBoard: footer?.targetBoard ?? targetBoard,
 		firmwareVersion,
 		buildDate,
@@ -91,7 +97,7 @@ function parseEmbeddedFirmwareFooter(bytes: Uint8Array): EmbeddedFirmwareFooter 
 	const footerStart = bytes.length - FIRMWARE_FOOTER_SIZE
 	const footer = bytes.slice(footerStart)
 	const magic = footer[0]
-	const formatVersion = footer[1]
+	const firmwareTypeCode = footer[1]
 	const targetId = footer[2]
 	const majorVersion = footer[3]
 	const minorVersion = footer[4]
@@ -105,7 +111,7 @@ function parseEmbeddedFirmwareFooter(bytes: Uint8Array): EmbeddedFirmwareFooter 
 
 	if (
 		magic === undefined
-		|| formatVersion === undefined
+		|| firmwareTypeCode === undefined
 		|| targetId === undefined
 		|| majorVersion === undefined
 		|| minorVersion === undefined
@@ -120,9 +126,10 @@ function parseEmbeddedFirmwareFooter(bytes: Uint8Array): EmbeddedFirmwareFooter 
 		return null
 	}
 
+	const firmwareType = FIRMWARE_TYPE_MAP[firmwareTypeCode]
 	const targetBoard = TARGET_NAME_MAP[targetId]
 
-	if (magic !== FIRMWARE_FOOTER_MAGIC || formatVersion !== FIRMWARE_FOOTER_FORMAT_VERSION || !targetBoard) {
+	if (magic !== FIRMWARE_FOOTER_MAGIC || !firmwareType || !targetBoard) {
 		return null
 	}
 
@@ -133,6 +140,7 @@ function parseEmbeddedFirmwareFooter(bytes: Uint8Array): EmbeddedFirmwareFooter 
 	}
 
 	return {
+		firmwareType,
 		targetId,
 		targetBoard,
 		firmwareVersion: `${majorVersion}.${minorVersion}.${revisionVersion}`,
