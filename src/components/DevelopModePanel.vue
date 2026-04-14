@@ -98,6 +98,51 @@
             {{ isReadingSensorConfig ? '读取中...' : '读取' }}
           </button>
         </div>
+
+        <div class="cmd-divider"></div>
+
+        <div class="cmd-item">
+          <div class="cmd-info">
+            <span class="cmd-name">测试与UMO系统交互</span>
+            <div class="cmd-mode-row">
+              <label class="cmd-mode-option">
+                <input v-model="uomTestMode" type="radio" value="mock">
+                <span>本地 mock</span>
+              </label>
+              <label class="cmd-mode-option">
+                <input v-model="uomTestMode" type="radio" value="real">
+                <span>真实接口</span>
+              </label>
+            </div>
+            <span class="cmd-desc">{{ uomTestModeDesc }}</span>
+            <span class="cmd-hex">实名状态验证接口请求: POST {{ realNameStatusRequestUrl }}</span>
+            <span class="cmd-hex">激活状态上报: POST {{ activationReportRequestUrl }}</span>
+            <span class="cmd-hex">注销登记: POST {{ deregistrationRequestUrl }}</span>
+          </div>
+          <div class="cmd-action-buttons">
+            <button
+              class="cmd-btn"
+              :disabled="!canTestRealNameStatus"
+              @click="testRealNameStatusApi"
+            >
+              {{ isTestingRealNameStatus ? '测试中...' : '实名状态验证接口请求' }}
+            </button>
+            <button
+              class="cmd-btn"
+              :disabled="!canTestActivationStatus"
+              @click="testActivationReportApi"
+            >
+              {{ isTestingActivationStatus ? '测试中...' : '激活状态上报' }}
+            </button>
+            <button
+              class="cmd-btn"
+              :disabled="!canTestDeregistration"
+              @click="testDeregistrationApi"
+            >
+              {{ isTestingDeregistration ? '测试中...' : '注销登记' }}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -123,9 +168,8 @@
         点击上方“读取当前传感器型号”后显示结果
       </div>
     </div>
-    </div><!-- /.cmd-sensor-row -->
-    <!-- 终端日志 -->
-    <div class="panel">
+
+    <div class="panel log-panel">
       <div class="panel-header">
         <h2>通信日志</h2>
         <button class="btn-secondary btn-small" @click="log = ''">清除</button>
@@ -137,6 +181,7 @@
         暂无日志，使用右上角连接设备后发送指令将在此显示
       </div>
     </div>
+    </div><!-- /.cmd-sensor-row -->
   </div>
 </template>
 
@@ -144,6 +189,22 @@
 import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
 import { ENABLE_DEV_PANEL_SERIAL_LOG } from '@/ts/msp/protocolFlags'
+import {
+  configuredUomActivationReportUrl,
+  configuredUomDeregistrationUrl,
+  configuredUomRealNameStatusUrl,
+  deregisterMockUav,
+  deregisterUav,
+  hasConfiguredUomApiBaseUrl,
+  hasConfiguredUomDeregistrationApi,
+  mockUomActivationReportUrl,
+  mockUomDeregistrationUrl,
+  mockUomRealNameStatusUrl,
+  queryMockUavRealNameStatus,
+  queryUavRealNameStatus,
+  reportMockUavActivationStatus,
+  reportUavActivationStatus,
+} from '@/ts/uomCom'
 
 const { getInstance, connectionState } = useSerial()
 const serialManager = getInstance()
@@ -211,6 +272,59 @@ const sensorConfigActive = ref<SensorConfigActiveState>({
 })
 const isReadingSensorConfig = ref(false)
 const lastSensorConfigAt = ref('')
+const isTestingRealNameStatus = ref(false)
+const isTestingActivationStatus = ref(false)
+const isTestingDeregistration = ref(false)
+const uomTestMode = ref<'mock' | 'real'>('mock')
+const lastActivationToken = ref('')
+
+const isMockUomMode = computed(() => uomTestMode.value === 'mock')
+
+const canTestRealNameStatus = computed(() => {
+  return !isTestingRealNameStatus.value && (isMockUomMode.value || hasConfiguredUomApiBaseUrl)
+})
+
+const canTestActivationStatus = computed(() => {
+  return !isTestingActivationStatus.value && (isMockUomMode.value || hasConfiguredUomApiBaseUrl)
+})
+
+const canTestDeregistration = computed(() => {
+  return !isTestingDeregistration.value && (isMockUomMode.value || hasConfiguredUomDeregistrationApi)
+})
+
+const realNameStatusRequestUrl = computed(() => {
+  return isMockUomMode.value
+    ? mockUomRealNameStatusUrl
+    : (configuredUomRealNameStatusUrl || '未配置 VITE_UOM_API_BASE_URL')
+})
+
+const activationReportRequestUrl = computed(() => {
+  return isMockUomMode.value
+    ? mockUomActivationReportUrl
+    : (configuredUomActivationReportUrl || '未配置 VITE_UOM_API_BASE_URL')
+})
+
+const deregistrationRequestUrl = computed(() => {
+  return isMockUomMode.value
+    ? mockUomDeregistrationUrl
+    : (configuredUomDeregistrationUrl || '未配置 VITE_UOM_DEREGISTRATION_PATH')
+})
+
+const uomTestModeDesc = computed(() => {
+  if (isMockUomMode.value) {
+    return '当前模式：本地 mock，用于联调页面逻辑'
+  }
+
+  if (!hasConfiguredUomApiBaseUrl) {
+    return '当前模式：真实接口，但尚未配置 VITE_UOM_API_BASE_URL'
+  }
+
+  if (!hasConfiguredUomDeregistrationApi) {
+    return '当前模式：真实接口；注销登记需要额外配置 VITE_UOM_DEREGISTRATION_PATH'
+  }
+
+  return '当前模式：真实接口'
+})
 
 let sensorReadTimeoutId: ReturnType<typeof setTimeout> | null = null
 const sensorReadTimeoutMs = 1500
@@ -434,6 +548,119 @@ async function send(cmd: Uint8Array, label: string) {
   }
 }
 
+async function testRealNameStatusApi() {
+  isTestingRealNameStatus.value = true
+
+  const plainPayload = {
+    UPIC_MSN: '123456789012',
+  }
+  const encryptedPayload = {
+    id: crypto.randomUUID(),
+    body: '7AC19EFBC0D60D047DF5A1B40F17C8',
+  }
+  const modeLabel = isMockUomMode.value ? '本地 mock' : '真实接口'
+  const requestUrl = realNameStatusRequestUrl.value
+
+  log.value += `[${timestamp()}] [HTTP] 模式 ${modeLabel}\n`
+  log.value += `[${timestamp()}] [HTTP] POST ${requestUrl}\n`
+  log.value += `[${timestamp()}] [HTTP] 加密前\n${JSON.stringify(plainPayload, null, 2)}\n`
+  log.value += `[${timestamp()}] [HTTP] 加密后\n${JSON.stringify(encryptedPayload, null, 2)}\n`
+
+  try {
+    const response = isMockUomMode.value
+      ? await queryMockUavRealNameStatus(encryptedPayload)
+      : await queryUavRealNameStatus(encryptedPayload)
+    const result = response.data
+    console.info('测试实名登记状态 API 返回内容', result)
+    log.value += `[${timestamp()}] [HTTP OK] 状态 ${response.status}，业务码 ${result.code}\n`
+    log.value += `${JSON.stringify(result, null, 2)}\n`
+  } catch (error) {
+    console.error('测试实名登记状态 API 请求失败', error)
+    const message = error instanceof Error ? error.message : String(error)
+    log.value += `[${timestamp()}] [HTTP ERR] ${message}\n`
+  } finally {
+    isTestingRealNameStatus.value = false
+  }
+}
+
+async function testActivationReportApi() {
+  isTestingActivationStatus.value = true
+
+  const plainPayload = {
+    UPIC_MSN: '123456789012',
+    STATE: '1',
+  }
+  const encryptedPayload = {
+    id: crypto.randomUUID(),
+    body: '7AC19EFBC0D60D047DF5A1B40F17C8',
+  }
+  const modeLabel = isMockUomMode.value ? '本地 mock' : '真实接口'
+  const requestUrl = activationReportRequestUrl.value
+
+  log.value += `[${timestamp()}] [HTTP] 模式 ${modeLabel}\n`
+  log.value += `[${timestamp()}] [HTTP] POST ${requestUrl}\n`
+  log.value += `[${timestamp()}] [HTTP] 激活状态上报加密前\n${JSON.stringify(plainPayload, null, 2)}\n`
+  log.value += `[${timestamp()}] [HTTP] 激活状态上报加密后\n${JSON.stringify(encryptedPayload, null, 2)}\n`
+
+  try {
+    const response = isMockUomMode.value
+      ? await reportMockUavActivationStatus(encryptedPayload)
+      : await reportUavActivationStatus(encryptedPayload)
+    const result = response.data
+    const token = result.body?.token
+    if (typeof token === 'string' && token.trim()) {
+      lastActivationToken.value = token
+    }
+    console.info('测试激活状态上报 API 返回内容', result)
+    log.value += `[${timestamp()}] [HTTP OK] 状态 ${response.status}，业务码 ${result.code}\n`
+    log.value += `${JSON.stringify(result, null, 2)}\n`
+  } catch (error) {
+    console.error('测试激活状态上报 API 请求失败', error)
+    const message = error instanceof Error ? error.message : String(error)
+    log.value += `[${timestamp()}] [HTTP ERR] ${message}\n`
+  } finally {
+    isTestingActivationStatus.value = false
+  }
+}
+
+async function testDeregistrationApi() {
+  isTestingDeregistration.value = true
+
+  const token = lastActivationToken.value || 'mock-token-activation-001'
+  const plainPayload = {
+    TOKEN: token,
+    TYPE: '0',
+    REASON: '退出使用测试',
+  }
+  const encryptedPayload = {
+    id: crypto.randomUUID(),
+    body: '7AC19EFBC0D60D047DF5A1B40F17C8',
+  }
+  const modeLabel = isMockUomMode.value ? '本地 mock' : '真实接口'
+  const requestUrl = deregistrationRequestUrl.value
+
+  log.value += `[${timestamp()}] [HTTP] 模式 ${modeLabel}\n`
+  log.value += `[${timestamp()}] [HTTP] POST ${requestUrl}\n`
+  log.value += `[${timestamp()}] [HTTP] 注销登记加密前\n${JSON.stringify(plainPayload, null, 2)}\n`
+  log.value += `[${timestamp()}] [HTTP] 注销登记加密后\n${JSON.stringify(encryptedPayload, null, 2)}\n`
+
+  try {
+    const response = isMockUomMode.value
+      ? await deregisterMockUav(encryptedPayload)
+      : await deregisterUav(encryptedPayload)
+    const result = response.data
+    console.info('测试注销登记 API 返回内容', result)
+    log.value += `[${timestamp()}] [HTTP OK] 状态 ${response.status}，业务码 ${result.code}\n`
+    log.value += `${JSON.stringify(result, null, 2)}\n`
+  } catch (error) {
+    console.error('测试注销登记 API 请求失败', error)
+    const message = error instanceof Error ? error.message : String(error)
+    log.value += `[${timestamp()}] [HTTP ERR] ${message}\n`
+  } finally {
+    isTestingDeregistration.value = false
+  }
+}
+
 // ── 黑匣子清除 ──────────────────────────────────────────────
 
 async function clearBlackbox() {
@@ -594,7 +821,8 @@ onUnmounted(() => {
 <style scoped>
 .dev-container {
   padding: var(--spacing-2xl);
-  max-width: 1100px;
+  width: 100%;
+  max-width: 1480px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -679,6 +907,35 @@ onUnmounted(() => {
   gap: 4px;
 }
 
+.cmd-mode-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-top: 2px;
+}
+
+.cmd-mode-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.cmd-mode-option input {
+  margin: 0;
+}
+
+.cmd-action-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
+  min-width: 180px;
+}
+
 .cmd-name {
   font-size: var(--font-size-base);
   font-weight: 600;
@@ -719,18 +976,26 @@ onUnmounted(() => {
   align-items: flex-start;
   border-bottom: 1px solid var(--border-light);
   padding: var(--spacing-lg) 0;
+  width: 100%;
 }
 
 .cmd-panel {
-  flex: 0 0 auto;
-  min-width: 340px;
+  flex: 0 0 550px;
+  min-width: 550px;
   border-bottom: none;
   padding: 0;
 }
 
 .sensor-panel {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 150px;
+  min-width: 150px;
+  border-bottom: none;
+  padding: 0;
+}
+
+.log-panel {
+  flex: 0 0 340px;
+  min-width: 340px;
   border-bottom: none;
   padding: 0;
 }
@@ -743,7 +1008,7 @@ onUnmounted(() => {
 
 .sensor-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--spacing-sm);
 }
 
@@ -822,6 +1087,11 @@ onUnmounted(() => {
 
   .cmd-panel {
     min-width: 0 !important;
+    width: 100%;
+  }
+
+  .log-panel {
+    min-width: 0;
     width: 100%;
   }
 }
