@@ -18,5 +18,12 @@ export default defineConfig({
   },
   server: {
     port: 8080,
+    proxy: {
+      '/snap-test': {
+        target: 'https://api.snap-test.in',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/snap-test/, ''),
+      },
+    },
   },
 })

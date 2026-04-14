@@ -98,6 +98,40 @@
             {{ isReadingSensorConfig ? '读取中...' : '读取' }}
           </button>
         </div>
+
+        <div class="cmd-divider"></div>
+
+        <div class="cmd-item">
+          <div class="cmd-info">
+            <span class="cmd-name">测试网络通路</span>
+            <span class="cmd-hex">GET https://api.snap-test.in/api/user/getAllUsers</span>
+            <span class="cmd-desc">请求示例用户接口，验证当前前端到外部 API 的网络连通性</span>
+          </div>
+          <button
+            class="cmd-btn"
+            :disabled="isTestingNetwork"
+            @click="testNetworkApi"
+          >
+            {{ isTestingNetwork ? '测试中...' : '测试网络' }}
+          </button>
+        </div>
+
+        <div class="cmd-divider"></div>
+
+        <div class="cmd-item">
+          <div class="cmd-info">
+            <span class="cmd-name">测试网络 POST</span>
+            <span class="cmd-hex">POST https://api.snap-test.in/api/user/addUser/</span>
+            <span class="cmd-desc">提交示例用户数据，验证当前前端到外部 API 的 POST 通路</span>
+          </div>
+          <button
+            class="cmd-btn"
+            :disabled="isTestingNetworkPost"
+            @click="testNetworkPostApi"
+          >
+            {{ isTestingNetworkPost ? '测试中...' : '测试 POST' }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -123,9 +157,8 @@
         点击上方“读取当前传感器型号”后显示结果
       </div>
     </div>
-    </div><!-- /.cmd-sensor-row -->
-    <!-- 终端日志 -->
-    <div class="panel">
+
+    <div class="panel log-panel">
       <div class="panel-header">
         <h2>通信日志</h2>
         <button class="btn-secondary btn-small" @click="log = ''">清除</button>
@@ -137,6 +170,7 @@
         暂无日志，使用右上角连接设备后发送指令将在此显示
       </div>
     </div>
+    </div><!-- /.cmd-sensor-row -->
   </div>
 </template>
 
@@ -144,6 +178,7 @@
 import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
 import { ENABLE_DEV_PANEL_SERIAL_LOG } from '@/ts/msp/protocolFlags'
+import { addSnapTestUser, getSnapTestUsers } from '@/ts/uomCom'
 
 const { getInstance, connectionState } = useSerial()
 const serialManager = getInstance()
@@ -211,6 +246,8 @@ const sensorConfigActive = ref<SensorConfigActiveState>({
 })
 const isReadingSensorConfig = ref(false)
 const lastSensorConfigAt = ref('')
+const isTestingNetwork = ref(false)
+const isTestingNetworkPost = ref(false)
 
 let sensorReadTimeoutId: ReturnType<typeof setTimeout> | null = null
 const sensorReadTimeoutMs = 1500
@@ -431,6 +468,52 @@ async function send(cmd: Uint8Array, label: string) {
     log.value += `[${timestamp()}] [TX] ${label}  ${toHexLog(cmd)}\n`
   } else {
     log.value += `[${timestamp()}] [ERR] ${label} 发送失败\n`
+  }
+}
+
+async function testNetworkApi() {
+  isTestingNetwork.value = true
+  log.value += `[${timestamp()}] [HTTP] GET https://api.snap-test.in/api/user/getAllUsers\n`
+
+  try {
+    const response = await getSnapTestUsers()
+    const result = response.data
+    console.info('测试网络 API 返回内容', result)
+    log.value += `[${timestamp()}] [HTTP OK] 状态 ${response.status}，返回 ${result.length} 条记录\n`
+    log.value += `${JSON.stringify(result, null, 2)}\n`
+  } catch (error) {
+    console.error('测试网络 API 请求失败', error)
+    const message = error instanceof Error ? error.message : String(error)
+    log.value += `[${timestamp()}] [HTTP ERR] ${message}\n`
+  } finally {
+    isTestingNetwork.value = false
+  }
+}
+
+async function testNetworkPostApi() {
+  isTestingNetworkPost.value = true
+  const payload = {
+    name: 'Tony Thompson',
+    email: 'tony.thompson@company.com',
+    job: 'Senior Software Engineer',
+    city: 'New York',
+  }
+
+  log.value += `[${timestamp()}] [HTTP] POST https://api.snap-test.in/api/user/addUser/\n`
+  log.value += `${JSON.stringify(payload, null, 2)}\n`
+
+  try {
+    const response = await addSnapTestUser(payload)
+    const result = response.data
+    console.info('测试网络 POST API 返回内容', result)
+    log.value += `[${timestamp()}] [HTTP OK] 状态 ${response.status}，POST 请求成功\n`
+    log.value += `${JSON.stringify(result, null, 2)}\n`
+  } catch (error) {
+    console.error('测试网络 POST API 请求失败', error)
+    const message = error instanceof Error ? error.message : String(error)
+    log.value += `[${timestamp()}] [HTTP ERR] ${message}\n`
+  } finally {
+    isTestingNetworkPost.value = false
   }
 }
 
@@ -735,6 +818,13 @@ onUnmounted(() => {
   padding: 0;
 }
 
+.log-panel {
+  flex: 0 0 360px;
+  min-width: 320px;
+  border-bottom: none;
+  padding: 0;
+}
+
 .sensor-meta {
   font-size: var(--font-size-sm);
   color: var(--text-disabled);
@@ -822,6 +912,11 @@ onUnmounted(() => {
 
   .cmd-panel {
     min-width: 0 !important;
+    width: 100%;
+  }
+
+  .log-panel {
+    min-width: 0;
     width: 100%;
   }
 }
