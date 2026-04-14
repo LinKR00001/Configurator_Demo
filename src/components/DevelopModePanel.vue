@@ -132,6 +132,33 @@
             {{ isTestingNetworkPost ? '测试中...' : '测试 POST' }}
           </button>
         </div>
+
+        <div class="cmd-divider"></div>
+
+        <div class="cmd-item">
+          <div class="cmd-info">
+            <span class="cmd-name">测试实名登记状态</span>
+            <div class="cmd-mode-row">
+              <label class="cmd-mode-option">
+                <input v-model="realNameStatusMode" type="radio" value="mock">
+                <span>本地 mock</span>
+              </label>
+              <label class="cmd-mode-option">
+                <input v-model="realNameStatusMode" type="radio" value="real">
+                <span>真实接口</span>
+              </label>
+            </div>
+            <span class="cmd-hex">POST {{ realNameStatusRequestUrl }}</span>
+            <span class="cmd-desc">{{ realNameStatusRequestDesc }}</span>
+          </div>
+          <button
+            class="cmd-btn"
+            :disabled="!canTestRealNameStatus"
+            @click="testRealNameStatusApi"
+          >
+            {{ isTestingRealNameStatus ? '测试中...' : '测试实名登记状态' }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -178,7 +205,15 @@
 import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
 import { ENABLE_DEV_PANEL_SERIAL_LOG } from '@/ts/msp/protocolFlags'
-import { addSnapTestUser, getSnapTestUsers } from '@/ts/uomCom'
+import {
+  addSnapTestUser,
+  configuredUomRealNameStatusUrl,
+  getSnapTestUsers,
+  hasConfiguredUomApiBaseUrl,
+  mockUomRealNameStatusUrl,
+  queryMockUavRealNameStatus,
+  queryUavRealNameStatus,
+} from '@/ts/uomCom'
 
 const { getInstance, connectionState } = useSerial()
 const serialManager = getInstance()
@@ -248,6 +283,28 @@ const isReadingSensorConfig = ref(false)
 const lastSensorConfigAt = ref('')
 const isTestingNetwork = ref(false)
 const isTestingNetworkPost = ref(false)
+const isTestingRealNameStatus = ref(false)
+const realNameStatusMode = ref<'mock' | 'real'>('mock')
+
+const canTestRealNameStatus = computed(() => {
+  return !isTestingRealNameStatus.value && (realNameStatusMode.value === 'mock' || hasConfiguredUomApiBaseUrl)
+})
+
+const realNameStatusRequestUrl = computed(() => {
+  return realNameStatusMode.value === 'mock'
+    ? mockUomRealNameStatusUrl
+    : (configuredUomRealNameStatusUrl || '未配置 VITE_UOM_API_BASE_URL')
+})
+
+const realNameStatusRequestDesc = computed(() => {
+  if (realNameStatusMode.value === 'mock') {
+    return '使用本地 mock 服务测试实名登记状态请求与响应格式'
+  }
+
+  return hasConfiguredUomApiBaseUrl
+    ? '请求真实 UOM 接口测试实名登记状态'
+    : '请先在 .env 中配置 VITE_UOM_API_BASE_URL，再切换到真实接口测试'
+})
 
 let sensorReadTimeoutId: ReturnType<typeof setTimeout> | null = null
 const sensorReadTimeoutMs = 1500
@@ -517,6 +574,41 @@ async function testNetworkPostApi() {
   }
 }
 
+async function testRealNameStatusApi() {
+  isTestingRealNameStatus.value = true
+
+  const plainPayload = {
+    UPIC_MSN: '123456789012',
+  }
+  const encryptedPayload = {
+    id: crypto.randomUUID(),
+    body: '7AC19EFBC0D60D047DF5A1B40F17C8',
+  }
+  const modeLabel = realNameStatusMode.value === 'mock' ? '本地 mock' : '真实接口'
+  const requestUrl = realNameStatusRequestUrl.value
+
+  log.value += `[${timestamp()}] [HTTP] 模式 ${modeLabel}\n`
+  log.value += `[${timestamp()}] [HTTP] POST ${requestUrl}\n`
+  log.value += `[${timestamp()}] [HTTP] 加密前\n${JSON.stringify(plainPayload, null, 2)}\n`
+  log.value += `[${timestamp()}] [HTTP] 加密后\n${JSON.stringify(encryptedPayload, null, 2)}\n`
+
+  try {
+    const response = realNameStatusMode.value === 'mock'
+      ? await queryMockUavRealNameStatus(encryptedPayload)
+      : await queryUavRealNameStatus(encryptedPayload)
+    const result = response.data
+    console.info('测试实名登记状态 API 返回内容', result)
+    log.value += `[${timestamp()}] [HTTP OK] 状态 ${response.status}，业务码 ${result.code}\n`
+    log.value += `${JSON.stringify(result, null, 2)}\n`
+  } catch (error) {
+    console.error('测试实名登记状态 API 请求失败', error)
+    const message = error instanceof Error ? error.message : String(error)
+    log.value += `[${timestamp()}] [HTTP ERR] ${message}\n`
+  } finally {
+    isTestingRealNameStatus.value = false
+  }
+}
+
 // ── 黑匣子清除 ──────────────────────────────────────────────
 
 async function clearBlackbox() {
@@ -760,6 +852,26 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.cmd-mode-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-top: 2px;
+}
+
+.cmd-mode-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.cmd-mode-option input {
+  margin: 0;
 }
 
 .cmd-name {
