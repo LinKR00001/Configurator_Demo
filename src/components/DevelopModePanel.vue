@@ -103,61 +103,45 @@
 
         <div class="cmd-item">
           <div class="cmd-info">
-            <span class="cmd-name">测试网络通路</span>
-            <span class="cmd-hex">GET https://api.snap-test.in/api/user/getAllUsers</span>
-            <span class="cmd-desc">请求示例用户接口，验证当前前端到外部 API 的网络连通性</span>
-          </div>
-          <button
-            class="cmd-btn"
-            :disabled="isTestingNetwork"
-            @click="testNetworkApi"
-          >
-            {{ isTestingNetwork ? '测试中...' : '测试网络' }}
-          </button>
-        </div>
-
-        <div class="cmd-divider"></div>
-
-        <div class="cmd-item">
-          <div class="cmd-info">
-            <span class="cmd-name">测试网络 POST</span>
-            <span class="cmd-hex">POST https://api.snap-test.in/api/user/addUser/</span>
-            <span class="cmd-desc">提交示例用户数据，验证当前前端到外部 API 的 POST 通路</span>
-          </div>
-          <button
-            class="cmd-btn"
-            :disabled="isTestingNetworkPost"
-            @click="testNetworkPostApi"
-          >
-            {{ isTestingNetworkPost ? '测试中...' : '测试 POST' }}
-          </button>
-        </div>
-
-        <div class="cmd-divider"></div>
-
-        <div class="cmd-item">
-          <div class="cmd-info">
-            <span class="cmd-name">测试实名登记状态</span>
+            <span class="cmd-name">测试与UMO系统交互</span>
             <div class="cmd-mode-row">
               <label class="cmd-mode-option">
-                <input v-model="realNameStatusMode" type="radio" value="mock">
+                <input v-model="uomTestMode" type="radio" value="mock">
                 <span>本地 mock</span>
               </label>
               <label class="cmd-mode-option">
-                <input v-model="realNameStatusMode" type="radio" value="real">
+                <input v-model="uomTestMode" type="radio" value="real">
                 <span>真实接口</span>
               </label>
             </div>
-            <span class="cmd-hex">POST {{ realNameStatusRequestUrl }}</span>
-            <span class="cmd-desc">{{ realNameStatusRequestDesc }}</span>
+            <span class="cmd-desc">{{ uomTestModeDesc }}</span>
+            <span class="cmd-hex">实名状态验证接口请求: POST {{ realNameStatusRequestUrl }}</span>
+            <span class="cmd-hex">激活状态上报: POST {{ activationReportRequestUrl }}</span>
+            <span class="cmd-hex">注销登记: POST {{ deregistrationRequestUrl }}</span>
           </div>
-          <button
-            class="cmd-btn"
-            :disabled="!canTestRealNameStatus"
-            @click="testRealNameStatusApi"
-          >
-            {{ isTestingRealNameStatus ? '测试中...' : '测试实名登记状态' }}
-          </button>
+          <div class="cmd-action-buttons">
+            <button
+              class="cmd-btn"
+              :disabled="!canTestRealNameStatus"
+              @click="testRealNameStatusApi"
+            >
+              {{ isTestingRealNameStatus ? '测试中...' : '实名状态验证接口请求' }}
+            </button>
+            <button
+              class="cmd-btn"
+              :disabled="!canTestActivationStatus"
+              @click="testActivationReportApi"
+            >
+              {{ isTestingActivationStatus ? '测试中...' : '激活状态上报' }}
+            </button>
+            <button
+              class="cmd-btn"
+              :disabled="!canTestDeregistration"
+              @click="testDeregistrationApi"
+            >
+              {{ isTestingDeregistration ? '测试中...' : '注销登记' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -206,13 +190,20 @@ import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
 import { ENABLE_DEV_PANEL_SERIAL_LOG } from '@/ts/msp/protocolFlags'
 import {
-  addSnapTestUser,
+  configuredUomActivationReportUrl,
+  configuredUomDeregistrationUrl,
   configuredUomRealNameStatusUrl,
-  getSnapTestUsers,
+  deregisterMockUav,
+  deregisterUav,
   hasConfiguredUomApiBaseUrl,
+  hasConfiguredUomDeregistrationApi,
+  mockUomActivationReportUrl,
+  mockUomDeregistrationUrl,
   mockUomRealNameStatusUrl,
   queryMockUavRealNameStatus,
   queryUavRealNameStatus,
+  reportMockUavActivationStatus,
+  reportUavActivationStatus,
 } from '@/ts/uomCom'
 
 const { getInstance, connectionState } = useSerial()
@@ -281,29 +272,58 @@ const sensorConfigActive = ref<SensorConfigActiveState>({
 })
 const isReadingSensorConfig = ref(false)
 const lastSensorConfigAt = ref('')
-const isTestingNetwork = ref(false)
-const isTestingNetworkPost = ref(false)
 const isTestingRealNameStatus = ref(false)
-const realNameStatusMode = ref<'mock' | 'real'>('mock')
+const isTestingActivationStatus = ref(false)
+const isTestingDeregistration = ref(false)
+const uomTestMode = ref<'mock' | 'real'>('mock')
+const lastActivationToken = ref('')
+
+const isMockUomMode = computed(() => uomTestMode.value === 'mock')
 
 const canTestRealNameStatus = computed(() => {
-  return !isTestingRealNameStatus.value && (realNameStatusMode.value === 'mock' || hasConfiguredUomApiBaseUrl)
+  return !isTestingRealNameStatus.value && (isMockUomMode.value || hasConfiguredUomApiBaseUrl)
+})
+
+const canTestActivationStatus = computed(() => {
+  return !isTestingActivationStatus.value && (isMockUomMode.value || hasConfiguredUomApiBaseUrl)
+})
+
+const canTestDeregistration = computed(() => {
+  return !isTestingDeregistration.value && (isMockUomMode.value || hasConfiguredUomDeregistrationApi)
 })
 
 const realNameStatusRequestUrl = computed(() => {
-  return realNameStatusMode.value === 'mock'
+  return isMockUomMode.value
     ? mockUomRealNameStatusUrl
     : (configuredUomRealNameStatusUrl || '未配置 VITE_UOM_API_BASE_URL')
 })
 
-const realNameStatusRequestDesc = computed(() => {
-  if (realNameStatusMode.value === 'mock') {
-    return '使用本地 mock 服务测试实名登记状态请求与响应格式'
+const activationReportRequestUrl = computed(() => {
+  return isMockUomMode.value
+    ? mockUomActivationReportUrl
+    : (configuredUomActivationReportUrl || '未配置 VITE_UOM_API_BASE_URL')
+})
+
+const deregistrationRequestUrl = computed(() => {
+  return isMockUomMode.value
+    ? mockUomDeregistrationUrl
+    : (configuredUomDeregistrationUrl || '未配置 VITE_UOM_DEREGISTRATION_PATH')
+})
+
+const uomTestModeDesc = computed(() => {
+  if (isMockUomMode.value) {
+    return '当前模式：本地 mock，用于联调页面逻辑'
   }
 
-  return hasConfiguredUomApiBaseUrl
-    ? '请求真实 UOM 接口测试实名登记状态'
-    : '请先在 .env 中配置 VITE_UOM_API_BASE_URL，再切换到真实接口测试'
+  if (!hasConfiguredUomApiBaseUrl) {
+    return '当前模式：真实接口，但尚未配置 VITE_UOM_API_BASE_URL'
+  }
+
+  if (!hasConfiguredUomDeregistrationApi) {
+    return '当前模式：真实接口；注销登记需要额外配置 VITE_UOM_DEREGISTRATION_PATH'
+  }
+
+  return '当前模式：真实接口'
 })
 
 let sensorReadTimeoutId: ReturnType<typeof setTimeout> | null = null
@@ -528,52 +548,6 @@ async function send(cmd: Uint8Array, label: string) {
   }
 }
 
-async function testNetworkApi() {
-  isTestingNetwork.value = true
-  log.value += `[${timestamp()}] [HTTP] GET https://api.snap-test.in/api/user/getAllUsers\n`
-
-  try {
-    const response = await getSnapTestUsers()
-    const result = response.data
-    console.info('测试网络 API 返回内容', result)
-    log.value += `[${timestamp()}] [HTTP OK] 状态 ${response.status}，返回 ${result.length} 条记录\n`
-    log.value += `${JSON.stringify(result, null, 2)}\n`
-  } catch (error) {
-    console.error('测试网络 API 请求失败', error)
-    const message = error instanceof Error ? error.message : String(error)
-    log.value += `[${timestamp()}] [HTTP ERR] ${message}\n`
-  } finally {
-    isTestingNetwork.value = false
-  }
-}
-
-async function testNetworkPostApi() {
-  isTestingNetworkPost.value = true
-  const payload = {
-    name: 'Tony Thompson',
-    email: 'tony.thompson@company.com',
-    job: 'Senior Software Engineer',
-    city: 'New York',
-  }
-
-  log.value += `[${timestamp()}] [HTTP] POST https://api.snap-test.in/api/user/addUser/\n`
-  log.value += `${JSON.stringify(payload, null, 2)}\n`
-
-  try {
-    const response = await addSnapTestUser(payload)
-    const result = response.data
-    console.info('测试网络 POST API 返回内容', result)
-    log.value += `[${timestamp()}] [HTTP OK] 状态 ${response.status}，POST 请求成功\n`
-    log.value += `${JSON.stringify(result, null, 2)}\n`
-  } catch (error) {
-    console.error('测试网络 POST API 请求失败', error)
-    const message = error instanceof Error ? error.message : String(error)
-    log.value += `[${timestamp()}] [HTTP ERR] ${message}\n`
-  } finally {
-    isTestingNetworkPost.value = false
-  }
-}
-
 async function testRealNameStatusApi() {
   isTestingRealNameStatus.value = true
 
@@ -584,7 +558,7 @@ async function testRealNameStatusApi() {
     id: crypto.randomUUID(),
     body: '7AC19EFBC0D60D047DF5A1B40F17C8',
   }
-  const modeLabel = realNameStatusMode.value === 'mock' ? '本地 mock' : '真实接口'
+  const modeLabel = isMockUomMode.value ? '本地 mock' : '真实接口'
   const requestUrl = realNameStatusRequestUrl.value
 
   log.value += `[${timestamp()}] [HTTP] 模式 ${modeLabel}\n`
@@ -593,7 +567,7 @@ async function testRealNameStatusApi() {
   log.value += `[${timestamp()}] [HTTP] 加密后\n${JSON.stringify(encryptedPayload, null, 2)}\n`
 
   try {
-    const response = realNameStatusMode.value === 'mock'
+    const response = isMockUomMode.value
       ? await queryMockUavRealNameStatus(encryptedPayload)
       : await queryUavRealNameStatus(encryptedPayload)
     const result = response.data
@@ -606,6 +580,84 @@ async function testRealNameStatusApi() {
     log.value += `[${timestamp()}] [HTTP ERR] ${message}\n`
   } finally {
     isTestingRealNameStatus.value = false
+  }
+}
+
+async function testActivationReportApi() {
+  isTestingActivationStatus.value = true
+
+  const plainPayload = {
+    UPIC_MSN: '123456789012',
+    STATE: '1',
+  }
+  const encryptedPayload = {
+    id: crypto.randomUUID(),
+    body: '7AC19EFBC0D60D047DF5A1B40F17C8',
+  }
+  const modeLabel = isMockUomMode.value ? '本地 mock' : '真实接口'
+  const requestUrl = activationReportRequestUrl.value
+
+  log.value += `[${timestamp()}] [HTTP] 模式 ${modeLabel}\n`
+  log.value += `[${timestamp()}] [HTTP] POST ${requestUrl}\n`
+  log.value += `[${timestamp()}] [HTTP] 激活状态上报加密前\n${JSON.stringify(plainPayload, null, 2)}\n`
+  log.value += `[${timestamp()}] [HTTP] 激活状态上报加密后\n${JSON.stringify(encryptedPayload, null, 2)}\n`
+
+  try {
+    const response = isMockUomMode.value
+      ? await reportMockUavActivationStatus(encryptedPayload)
+      : await reportUavActivationStatus(encryptedPayload)
+    const result = response.data
+    const token = result.body?.token
+    if (typeof token === 'string' && token.trim()) {
+      lastActivationToken.value = token
+    }
+    console.info('测试激活状态上报 API 返回内容', result)
+    log.value += `[${timestamp()}] [HTTP OK] 状态 ${response.status}，业务码 ${result.code}\n`
+    log.value += `${JSON.stringify(result, null, 2)}\n`
+  } catch (error) {
+    console.error('测试激活状态上报 API 请求失败', error)
+    const message = error instanceof Error ? error.message : String(error)
+    log.value += `[${timestamp()}] [HTTP ERR] ${message}\n`
+  } finally {
+    isTestingActivationStatus.value = false
+  }
+}
+
+async function testDeregistrationApi() {
+  isTestingDeregistration.value = true
+
+  const token = lastActivationToken.value || 'mock-token-activation-001'
+  const plainPayload = {
+    TOKEN: token,
+    TYPE: '0',
+    REASON: '退出使用测试',
+  }
+  const encryptedPayload = {
+    id: crypto.randomUUID(),
+    body: '7AC19EFBC0D60D047DF5A1B40F17C8',
+  }
+  const modeLabel = isMockUomMode.value ? '本地 mock' : '真实接口'
+  const requestUrl = deregistrationRequestUrl.value
+
+  log.value += `[${timestamp()}] [HTTP] 模式 ${modeLabel}\n`
+  log.value += `[${timestamp()}] [HTTP] POST ${requestUrl}\n`
+  log.value += `[${timestamp()}] [HTTP] 注销登记加密前\n${JSON.stringify(plainPayload, null, 2)}\n`
+  log.value += `[${timestamp()}] [HTTP] 注销登记加密后\n${JSON.stringify(encryptedPayload, null, 2)}\n`
+
+  try {
+    const response = isMockUomMode.value
+      ? await deregisterMockUav(encryptedPayload)
+      : await deregisterUav(encryptedPayload)
+    const result = response.data
+    console.info('测试注销登记 API 返回内容', result)
+    log.value += `[${timestamp()}] [HTTP OK] 状态 ${response.status}，业务码 ${result.code}\n`
+    log.value += `${JSON.stringify(result, null, 2)}\n`
+  } catch (error) {
+    console.error('测试注销登记 API 请求失败', error)
+    const message = error instanceof Error ? error.message : String(error)
+    log.value += `[${timestamp()}] [HTTP ERR] ${message}\n`
+  } finally {
+    isTestingDeregistration.value = false
   }
 }
 
@@ -769,7 +821,8 @@ onUnmounted(() => {
 <style scoped>
 .dev-container {
   padding: var(--spacing-2xl);
-  max-width: 1100px;
+  width: 100%;
+  max-width: 1480px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -874,6 +927,15 @@ onUnmounted(() => {
   margin: 0;
 }
 
+.cmd-action-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
+  min-width: 180px;
+}
+
 .cmd-name {
   font-size: var(--font-size-base);
   font-weight: 600;
@@ -914,25 +976,26 @@ onUnmounted(() => {
   align-items: flex-start;
   border-bottom: 1px solid var(--border-light);
   padding: var(--spacing-lg) 0;
+  width: 100%;
 }
 
 .cmd-panel {
-  flex: 0 0 auto;
-  min-width: 340px;
+  flex: 0 0 550px;
+  min-width: 550px;
   border-bottom: none;
   padding: 0;
 }
 
 .sensor-panel {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 150px;
+  min-width: 150px;
   border-bottom: none;
   padding: 0;
 }
 
 .log-panel {
-  flex: 0 0 360px;
-  min-width: 320px;
+  flex: 0 0 340px;
+  min-width: 340px;
   border-bottom: none;
   padding: 0;
 }
@@ -945,7 +1008,7 @@ onUnmounted(() => {
 
 .sensor-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--spacing-sm);
 }
 
