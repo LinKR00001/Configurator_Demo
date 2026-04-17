@@ -56,6 +56,10 @@
             <span class="info-label">板子 ID</span>
             <span class="info-value">{{ fcInfo.targetId || '—' }}</span>
           </div>
+          <div class="info-item">
+            <span class="info-label">UID</span>
+            <span class="info-value uid-value">{{ fcInfo.uid || '—' }}</span>
+          </div>
         </div>
       </div>
     </template>
@@ -71,12 +75,20 @@ const { getInstance } = useSerial()
 const serialManager = getInstance()
 
 // 读取全局共享的飞控信息（轮询由 SerialPanel 启动，此处只读）
-const { fcInfo, requestMspFcVersionOnce } = useFCInfo()
+const { fcInfo, requestMspFcVersionOnce, requestMspUidOnce } = useFCInfo()
 
 const isConnected = ref(serialManager.getConnected())
 const isActivated = ref(false)
 
-const handleConnected = () => { isConnected.value = true }
+const requestDeviceInfo = () => {
+  void requestMspFcVersionOnce()
+  void requestMspUidOnce()
+}
+
+const handleConnected = () => {
+  isConnected.value = true
+  requestDeviceInfo()
+}
 const handleDisconnected = () => {
   isConnected.value = false
   isActivated.value = false
@@ -92,7 +104,7 @@ onMounted(() => {
   serialManager.addEventListener('connected', handleConnected)
   serialManager.addEventListener('disconnected', handleDisconnected)
   if (isConnected.value) {
-    requestMspFcVersionOnce()
+    requestDeviceInfo()
   }
 })
 
@@ -261,6 +273,13 @@ onUnmounted(() => {
   font-size: var(--font-size-xl);
   font-weight: 700;
   color: var(--primary-600);
+}
+
+.uid-value {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: var(--font-size-base);
+  line-height: 1.4;
+  word-break: break-all;
 }
 
 /* 终端显示区 */

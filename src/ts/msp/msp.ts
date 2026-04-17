@@ -34,6 +34,7 @@ const MSP = {
 export const MSP_CMD = {
   FC_VERSION: 3,
   NAME: 10,
+  UID: 160,
   RAW_IMU: 102,
   RC: 105,
   ATTITUDE: 108,

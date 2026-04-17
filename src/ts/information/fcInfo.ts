@@ -22,6 +22,7 @@ const fcInfo = ref({
   patchVersion: 0,
   targetId: 0,
   targetName: '未知',
+  uid: '',
 })
 
 
@@ -29,9 +30,10 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 let initialized = false
 let unbindVersionMessage: (() => void) | null = null
 let unbindNameMessage: (() => void) | null = null
+let unbindUidMessage: (() => void) | null = null
 
 function resetFCInfo() {
-  fcInfo.value = { majorVersion: 0, minorVersion: 0, patchVersion: 0, targetId: 0, targetName: '未知' }
+  fcInfo.value = { majorVersion: 0, minorVersion: 0, patchVersion: 0, targetId: 0, targetName: '未知', uid: '' }
 }
 
 function parseFcVersion(payload: Uint8Array) {
@@ -48,6 +50,17 @@ function parseFcName(payload: Uint8Array) {
     fcInfo.value.targetName = name
     fcInfo.value.targetId = 0
   }
+}
+
+function parseUid(payload: Uint8Array) {
+  if (payload.length === 0) return
+  const uid = Array.from(payload)
+    .filter((byte) => byte !== 0)
+    .map((byte) => String.fromCharCode(byte))
+    .join('')
+    .trim()
+
+  fcInfo.value.uid = uid
 }
 
 function parseVerMsg(bytes: Uint8Array) {
@@ -84,6 +97,18 @@ async function requestMspFcVersionOnce() {
   return serialManager.send(frame)
 }
 
+async function requestMspUidOnce() {
+  if (!ENABLE_MSP_PROTOCOL) return false
+  const { getInstance } = useSerial()
+  const serialManager = getInstance()
+  if (!serialManager.getConnected()) return false
+  const frame = encodeMspV1Frame(MSP_CMD.UID)
+  if (ENABLE_MSP_RX_FRAME_LOG) {
+    console.log(`[MSP TX][MSP_UID] ${toHex(frame)}`)
+  }
+  return serialManager.send(frame)
+}
+
 function startPolling() {
   if (pollTimer !== null) return
   sendQueryCmd()
@@ -111,7 +136,13 @@ export function useFCInfo() {
     const serialManager = getInstance()
     const { onMessage } = useMsp()
 
-    serialManager.addEventListener('connected', () => startPolling())
+    const handleConnected = () => {
+      startPolling()
+      void requestMspFcVersionOnce()
+      void requestMspUidOnce()
+    }
+
+    serialManager.addEventListener('connected', handleConnected)
     serialManager.addEventListener('disconnected', () => stopPolling())
     unbindVersionMessage = onMessage(MSP_CMD.FC_VERSION, (frame) => {
       if (!ENABLE_MSP_PROTOCOL) return
@@ -123,6 +154,11 @@ export function useFCInfo() {
       if (frame.direction !== '>') return
       parseFcName(frame.payload)
     })
+    unbindUidMessage = onMessage(MSP_CMD.UID, (frame) => {
+      if (!ENABLE_MSP_PROTOCOL) return
+      if (frame.direction !== '>') return
+      parseUid(frame.payload)
+    })
     serialManager.addEventListener('data', (event: any) => {
       if (!ENABLE_CUSTOM_PROTOCOL) return
       if (event.data) parseVerMsg(event.data)
@@ -130,7 +166,7 @@ export function useFCInfo() {
 
     // 若初始化时串口已处于连接状态，立即开始轮询
     if (serialManager.getConnected()) {
-      startPolling()
+      handleConnected()
     }
   }
 
@@ -138,5 +174,6 @@ export function useFCInfo() {
     fcInfo: readonly(fcInfo),
     init,
     requestMspFcVersionOnce,
+    requestMspUidOnce,
   }
 }

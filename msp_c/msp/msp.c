@@ -26,7 +26,7 @@ mspDescriptor_t mspDescriptorAlloc(void)
     return (mspDescriptor_t)mspDescriptor++;
 }
 #define FC_VERSION_YEAR             2026
-#define FC_CALVER_BASE_YEAR 2000
+#define FC_CALVER_BASE_YEAR         2000
 
 #define FC_VERSION_MONTH            6
 #define FC_VERSION_PATCH_LEVEL      0
@@ -45,6 +45,20 @@ extern RCDATA_t rcData;
  *  encodeAttitude: float in deg   → int16  (1 unit = 0.1 °,    range ±3276.7 °)
  * --------------------------------------------------------------- */
 #define RAD_TO_DEG_F  (180.0f / 3.14159265358979f)
+
+static bool mspReadDeviceUid(uint8_t uid[20])
+{
+#if defined(UID_BASE)
+    const uint8_t *uidBase = (const uint8_t *)UID_BASE;
+    for (int i = 0; i < 20; i++) {
+        uid[i] = uidBase[i];
+    }
+    return true;
+#else
+    (void)uid;
+    return false;
+#endif
+}
 
 static uint16_t encodeToInt16Clamped(float value)
 {
@@ -88,6 +102,15 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
             sbufWriteU8(dst, FC_VERSION_PATCH_LEVEL);
 //            sbufWritePString(dst, FC_VERSION_STRING);
             break;
+        case MSP_UID: {
+            uint8_t uid[20];
+            if (!mspReadDeviceUid(uid)) {
+                unsupportedCommand = true;
+                break;
+            }
+            sbufWriteData(dst, uid, sizeof(uid));
+            break;
+        }
         case MSP_NAME:
             sbufWriteString(dst, "Aquila16");
             break;
