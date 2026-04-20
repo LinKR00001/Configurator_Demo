@@ -26,14 +26,24 @@
             {{ isActivated ? '已激活' : '未激活' }}
           </span>
         </div>
-        <button
-          class="activate-btn"
-          type="button"
-          :disabled="!isConnected || isActivated || isActivating"
-          @click="activateModule"
-        >
-          {{ isActivated ? '已激活' : (isActivating ? '激活中...' : '激活') }}
-        </button>
+        <div class="activation-actions">
+          <button
+            class="activate-btn"
+            type="button"
+            :disabled="!isConnected || isActivated || activationAction === 'activate' || activationAction === 'deactivate'"
+            @click="activateModule"
+          >
+            {{ isActivated ? '已激活' : (activationAction === 'activate' ? '激活中...' : '激活') }}
+          </button>
+          <button
+            class="deactivate-btn"
+            type="button"
+            :disabled="!isConnected || !isActivated || activationAction === 'activate' || activationAction === 'deactivate'"
+            @click="deactivateModule"
+          >
+            {{ activationAction === 'deactivate' ? '注销中...' : '注销' }}
+          </button>
+        </div>
       </div>
 
       <!-- 飞控信息面板 -->
@@ -75,11 +85,11 @@ const { getInstance } = useSerial()
 const serialManager = getInstance()
 
 // 读取全局共享的飞控信息（轮询由 SerialPanel 启动，此处只读）
-const { fcInfo, requestMspFcVersionOnce, requestMspUidOnce, activateFcOnce } = useFCInfo()
+const { fcInfo, requestMspFcVersionOnce, requestMspUidOnce, activateFcOnce, deactivateFcOnce } = useFCInfo()
 
 const isConnected = ref(serialManager.getConnected())
 const isActivated = computed(() => fcInfo.value.activationFlag)
-const isActivating = ref(false)
+const activationAction = ref<'idle' | 'activate' | 'deactivate'>('idle')
 
 const requestDeviceInfo = () => {
   void requestMspFcVersionOnce()
@@ -95,12 +105,22 @@ const handleDisconnected = () => {
 }
 
 const activateModule = async () => {
-  if (!isConnected.value || isActivated.value || isActivating.value) return
-  isActivating.value = true
+  if (!isConnected.value || isActivated.value || activationAction.value !== 'idle') return
+  activationAction.value = 'activate'
   try {
     await activateFcOnce()
   } finally {
-    isActivating.value = false
+    activationAction.value = 'idle'
+  }
+}
+
+const deactivateModule = async () => {
+  if (!isConnected.value || !isActivated.value || activationAction.value !== 'idle') return
+  activationAction.value = 'deactivate'
+  try {
+    await deactivateFcOnce()
+  } finally {
+    activationAction.value = 'idle'
   }
 }
 
@@ -177,6 +197,12 @@ onUnmounted(() => {
   gap: var(--spacing-md);
 }
 
+.activation-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
 .activation-label {
   font-size: var(--font-size-sm);
   color: var(--text-disabled);
@@ -216,9 +242,27 @@ onUnmounted(() => {
   filter: brightness(1.05);
 }
 
-.activate-btn:disabled {
+.activate-btn:disabled,
+.deactivate-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.deactivate-btn {
+  border: 1px solid var(--border-medium);
+  background-color: var(--surface-0);
+  color: var(--text-primary);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.deactivate-btn:hover:not(:disabled) {
+  border-color: var(--danger-500);
+  color: var(--danger-600);
 }
 
 /* 面板覆盖：扁平化 */

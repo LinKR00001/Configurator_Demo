@@ -119,21 +119,29 @@ async function requestMspUidOnce() {
   return serialManager.send(frame)
 }
 
-async function activateFcOnce() {
+async function setActivationFlagOnce(flag: 0 | 1) {
   if (!ENABLE_MSP_PROTOCOL) return false
   const { getInstance } = useSerial()
   const serialManager = getInstance()
   if (!serialManager.getConnected()) return false
 
-  const payload = new Uint8Array([1])
+  const payload = new Uint8Array([flag])
   const frame = encodeMspV2NativeFrame(MSP2_CMD.ACTIVATION, payload)
   if (ENABLE_MSP_RX_FRAME_LOG) {
-    console.log(`[MSP2 TX][MSP2_ACTIVATION] ${toHex(frame)}`)
+    console.log(`[MSP2 TX][MSP2_ACTIVATION=${flag}] ${toHex(frame)}`)
   }
 
   const sent = await serialManager.send(frame)
   if (!sent) return false
   return requestMspUidOnce()
+}
+
+async function activateFcOnce() {
+  return setActivationFlagOnce(1)
+}
+
+async function deactivateFcOnce() {
+  return setActivationFlagOnce(0)
 }
 
 function startPolling() {
@@ -203,5 +211,6 @@ export function useFCInfo() {
     requestMspFcVersionOnce,
     requestMspUidOnce,
     activateFcOnce,
+    deactivateFcOnce,
   }
 }
