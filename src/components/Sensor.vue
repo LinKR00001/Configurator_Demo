@@ -92,49 +92,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
+import { useSensorInfo } from '@/ts/information/sensorInfo'
 
-const { getInstance, connectionState } = useSerial()
+const { connectionState } = useSerial()
 
-// ── 类型定义 ─────────────────────────────────────────────────
-interface OpticalFlowData {
-  flowX: number
-  flowY: number
-  confidence: number
-}
-
-interface TofData {
-  distance: number
-  confidence: number
-}
-
-const POLL_INTERVAL_MS = 100  // 10 Hz
-
-// ── 数据状态 ─────────────────────────────────────────────────
-const opticalFlowData = ref<OpticalFlowData>({
-  flowX: 0,
-  flowY: 0,
-  confidence: 0,
-})
-
-const tofData = ref<TofData>({
-  distance: 0,
-  confidence: 0,
-})
-
-const frameCount = ref(0)
-const opticalFlowFrameCount = ref(0)
-const tofFrameCount = ref(0)
-const crcErrorCount = ref(0)
-const txCount = ref(0)
-
-const opticalFlowUpdatedAt = ref('')
-const tofUpdatedAt = ref('')
-const opticalFlowActive = ref(false)
-const tofActive = ref(false)
-
-
+const {
+  opticalFlowData,
+  tofData,
+  frameCount,
+  opticalFlowFrameCount,
+  tofFrameCount,
+  crcErrorCount,
+  txCount,
+  opticalFlowUpdatedAt,
+  tofUpdatedAt,
+  opticalFlowActive,
+  tofActive,
+} = useSensorInfo()
 </script>
 
 <style scoped>
