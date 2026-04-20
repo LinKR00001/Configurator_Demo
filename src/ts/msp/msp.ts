@@ -34,6 +34,8 @@ const MSP = {
 export const MSP_CMD = {
   FC_VERSION: 3,
   NAME: 10,
+  SONAR_ALTITUDE: 58,
+  UID: 160,
   RAW_IMU: 102,
   RC: 105,
   ATTITUDE: 108,
@@ -71,6 +73,10 @@ export interface MspAttitudeFrame {
   roll: number   // degrees
   pitch: number  // degrees
   yaw: number    // degrees
+}
+
+export interface MspSonarFrame {
+  distance: number // meters
 }
 
 export interface MspPidFrame {
@@ -117,6 +123,7 @@ type MspHandler = (frame: MspFrame) => void
 type MspRcHandler = (rc: MspRcFrame) => void
 type MspImuHandler = (imu: MspImuFrame) => void
 type MspAttitudeHandler = (attitude: MspAttitudeFrame) => void
+type MspSonarHandler = (sonar: MspSonarFrame) => void
 type MspPidHandler = (pid: MspPidFrame) => void
 type MspRcTuningHandler = (rcTuning: MspRcTuningFrame) => void
 
@@ -124,6 +131,7 @@ const listenersByCmd = new Map<number, Set<MspHandler>>()
 const rcListeners = new Set<MspRcHandler>()
 const imuListeners = new Set<MspImuHandler>()
 const attitudeListeners = new Set<MspAttitudeHandler>()
+const sonarListeners = new Set<MspSonarHandler>()
 const pidListeners = new Set<MspPidHandler>()
 const rcTuningListeners = new Set<MspRcTuningHandler>()
 
@@ -203,6 +211,13 @@ function dispatchFrame(frame: MspFrame) {
     }
   }
 
+  if (frame.direction === '>' && frame.command === MSP_CMD.SONAR_ALTITUDE) {
+    const sonar = parseSonarPayload(frame.payload)
+    if (sonar) {
+      sonarListeners.forEach((handler) => handler(sonar))
+    }
+  }
+
   if (frame.direction === '>' && frame.command === MSP_CMD.PID) {
     const pid = parsePidPayload(frame.payload)
     if (pid) {
@@ -244,6 +259,14 @@ function parseAttitudePayload(payload: Uint8Array): MspAttitudeFrame | null {
     roll:  Number((view.getInt16(0, true) / 10).toFixed(1)),
     pitch: Number((view.getInt16(2, true) / 10).toFixed(1)),
     yaw:   Number((view.getInt16(4, true) / 10).toFixed(1)),
+  }
+}
+
+function parseSonarPayload(payload: Uint8Array): MspSonarFrame | null {
+  if (payload.length < 4) return null
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
+  return {
+    distance: Number((view.getUint32(0, true) / 1000).toFixed(3)),
   }
 }
 
@@ -462,6 +485,13 @@ export function useMsp() {
     }
   }
 
+  function onSonarMessage(handler: MspSonarHandler): () => void {
+    sonarListeners.add(handler)
+    return () => {
+      sonarListeners.delete(handler)
+    }
+  }
+
   function onPidMessage(handler: MspPidHandler): () => void {
     pidListeners.add(handler)
     return () => {
@@ -490,6 +520,7 @@ export function useMsp() {
     onRcMessage,
     onImuMessage,
     onAttitudeMessage,
+    onSonarMessage,
     onPidMessage,
     onRcTuningMessage,
     send,

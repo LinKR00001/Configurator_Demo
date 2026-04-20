@@ -202,9 +202,20 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
 
         // added in 1.47
         sbufWriteU8(dst, currentControlRateProfile->thrHover8);
-
         break;
-        
+        case MSP_SONAR_ALTITUDE:
+        {
+            uint32_t tofDistanceMm = 0u;
+
+            if (tof.distance > 0.0f)
+            {
+                tofDistanceMm = (uint32_t)tof.distance*1000.0f;
+            }
+
+            sbufWriteU32(dst, tofDistanceMm);
+            break;
+        }
+
         default:
             unsupportedCommand = true;
         }
