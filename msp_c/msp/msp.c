@@ -103,12 +103,10 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
 //            sbufWritePString(dst, FC_VERSION_STRING);
             break;
         case MSP_UID: {
-            uint8_t uid[20];
-            if (!mspReadDeviceUid(uid)) {
-                unsupportedCommand = true;
-                break;
-            }
-            sbufWriteData(dst, uid, sizeof(uid));
+            static const char defaultUid[20] = MSP_UID_STRING;
+            const char *uid = remoteID_hasRxBasicID() ? remoteID_getRxUasID() : defaultUid;
+            sbufWriteData(dst, uid, sizeof(defaultUid));
+            sbufWriteData(dst, &activationFlag, sizeof(activationFlag));
             break;
         }
         case MSP_NAME:
@@ -354,7 +352,11 @@ static mspResult_e mspCommonProcessInCommand(mspDescriptor_t srcDesc, int16_t cm
                 }
                 /* resetIndex == 0: do nothing */
             }
-
+            break;
+        case MSP2_ACTIVATION:
+            if (sbufBytesRemaining(src) >= 1) {
+                activationFlag = sbufReadU8(src);
+            }
             break;
         default:
             return MSP_RESULT_CMD_UNKNOWN;

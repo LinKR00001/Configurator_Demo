@@ -26,3 +26,4 @@
 // TODO: implement new, extensible rangefinder protocol
 #define MSP2_SENSOR_RANGEFINDER_LIDARMT 0x1F01
 #define MSP2_SENSOR_OPTICALFLOW_MT      0x1F02
+#define MSP2_ACTIVATION                 0x1F03

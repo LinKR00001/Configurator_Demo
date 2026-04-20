@@ -6,7 +6,7 @@
 
 import { ref, readonly } from 'vue'
 import { useSerial } from '@/composables/useSerial'
-import { MSP_CMD, encodeMspV1Frame, useMsp } from '@/ts/msp/msp'
+import { MSP_CMD, MSP2_CMD, encodeMspV1Frame, encodeMspV2NativeFrame, useMsp } from '@/ts/msp/msp'
 import { ENABLE_CUSTOM_PROTOCOL, ENABLE_MSP_PROTOCOL, ENABLE_MSP_RX_FRAME_LOG } from '@/ts/msp/protocolFlags'
 
 const QUERY_CMD = new Uint8Array([0xFE, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0xA8, 0xF2])
@@ -23,6 +23,7 @@ const fcInfo = ref({
   targetId: 0,
   targetName: '未知',
   uid: '',
+  activationFlag: false,
 })
 
 
@@ -33,7 +34,15 @@ let unbindNameMessage: (() => void) | null = null
 let unbindUidMessage: (() => void) | null = null
 
 function resetFCInfo() {
-  fcInfo.value = { majorVersion: 0, minorVersion: 0, patchVersion: 0, targetId: 0, targetName: '未知', uid: '' }
+  fcInfo.value = {
+    majorVersion: 0,
+    minorVersion: 0,
+    patchVersion: 0,
+    targetId: 0,
+    targetName: '未知',
+    uid: '',
+    activationFlag: false,
+  }
 }
 
 function parseFcVersion(payload: Uint8Array) {
@@ -54,13 +63,14 @@ function parseFcName(payload: Uint8Array) {
 
 function parseUid(payload: Uint8Array) {
   if (payload.length === 0) return
-  const uid = Array.from(payload)
-    .filter((byte) => byte !== 0)
-    .map((byte) => String.fromCharCode(byte))
-    .join('')
+  const uidPayload = payload.subarray(0, Math.min(20, payload.length))
+  const uid = new TextDecoder()
+    .decode(uidPayload)
+    .replace(/\0/g, '')
     .trim()
 
   fcInfo.value.uid = uid
+  fcInfo.value.activationFlag = payload.length > 20 ? payload[20]! === 1 : false
 }
 
 function parseVerMsg(bytes: Uint8Array) {
@@ -107,6 +117,23 @@ async function requestMspUidOnce() {
     console.log(`[MSP TX][MSP_UID] ${toHex(frame)}`)
   }
   return serialManager.send(frame)
+}
+
+async function activateFcOnce() {
+  if (!ENABLE_MSP_PROTOCOL) return false
+  const { getInstance } = useSerial()
+  const serialManager = getInstance()
+  if (!serialManager.getConnected()) return false
+
+  const payload = new Uint8Array([1])
+  const frame = encodeMspV2NativeFrame(MSP2_CMD.ACTIVATION, payload)
+  if (ENABLE_MSP_RX_FRAME_LOG) {
+    console.log(`[MSP2 TX][MSP2_ACTIVATION] ${toHex(frame)}`)
+  }
+
+  const sent = await serialManager.send(frame)
+  if (!sent) return false
+  return requestMspUidOnce()
 }
 
 function startPolling() {
@@ -175,5 +202,6 @@ export function useFCInfo() {
     init,
     requestMspFcVersionOnce,
     requestMspUidOnce,
+    activateFcOnce,
   }
 }

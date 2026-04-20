@@ -29,10 +29,10 @@
         <button
           class="activate-btn"
           type="button"
-          :disabled="isActivated || !isConnected"
+          :disabled="!isConnected || isActivated || isActivating"
           @click="activateModule"
         >
-          {{ isActivated ? '已激活' : '激活' }}
+          {{ isActivated ? '已激活' : (isActivating ? '激活中...' : '激活') }}
         </button>
       </div>
 
@@ -67,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useSerial } from '@/composables/useSerial'
 import { useFCInfo } from '@/ts/information/fcInfo'
 
@@ -75,10 +75,11 @@ const { getInstance } = useSerial()
 const serialManager = getInstance()
 
 // 读取全局共享的飞控信息（轮询由 SerialPanel 启动，此处只读）
-const { fcInfo, requestMspFcVersionOnce, requestMspUidOnce } = useFCInfo()
+const { fcInfo, requestMspFcVersionOnce, requestMspUidOnce, activateFcOnce } = useFCInfo()
 
 const isConnected = ref(serialManager.getConnected())
-const isActivated = ref(false)
+const isActivated = computed(() => fcInfo.value.activationFlag)
+const isActivating = ref(false)
 
 const requestDeviceInfo = () => {
   void requestMspFcVersionOnce()
@@ -91,12 +92,16 @@ const handleConnected = () => {
 }
 const handleDisconnected = () => {
   isConnected.value = false
-  isActivated.value = false
 }
 
-const activateModule = () => {
-  if (!isConnected.value) return
-  isActivated.value = true
+const activateModule = async () => {
+  if (!isConnected.value || isActivated.value || isActivating.value) return
+  isActivating.value = true
+  try {
+    await activateFcOnce()
+  } finally {
+    isActivating.value = false
+  }
 }
 
 onMounted(() => {
