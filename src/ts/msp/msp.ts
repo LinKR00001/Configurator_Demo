@@ -81,6 +81,7 @@ export interface MspAttitudeFrame {
 
 export interface MspSonarFrame {
   distance: number // meters
+  confidence: number // percent
 }
 
 export interface MspPidFrame {
@@ -298,10 +299,11 @@ function parseAttitudePayload(payload: Uint8Array): MspAttitudeFrame | null {
 }
 
 function parseSonarPayload(payload: Uint8Array): MspSonarFrame | null {
-  if (payload.length < 4) return null
+  if (payload.length < 5) return null
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
   return {
     distance: Number((view.getUint32(0, true) / 1000).toFixed(3)),
+    confidence: payload[4]!,
   }
 }
 
