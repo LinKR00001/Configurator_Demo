@@ -47,6 +47,10 @@ export const MSP_CMD = {
   SET_MOTOR: 214,
 } as const
 
+export const MSP2_CMD = {
+  ACTIVATION: 0x1F03,
+} as const
+
 type MspDirection = '<' | '>' | '!'
 
 export interface MspFrame {
@@ -77,6 +81,7 @@ export interface MspAttitudeFrame {
 
 export interface MspSonarFrame {
   distance: number // meters
+  confidence: number // percent
 }
 
 export interface MspPidFrame {
@@ -152,6 +157,22 @@ function xorChecksum(size: number, cmd: number, payload: Uint8Array): number {
   return checksum & 0xFF
 }
 
+function crc8DvbS2Update(crc: number, value: number): number {
+  let current = (crc ^ value) & 0xFF
+  for (let i = 0; i < 8; i++) {
+    current = (current & 0x80) ? (((current << 1) ^ 0xD5) & 0xFF) : ((current << 1) & 0xFF)
+  }
+  return current
+}
+
+function crc8DvbS2(data: Uint8Array): number {
+  let crc = 0
+  for (let i = 0; i < data.length; i++) {
+    crc = crc8DvbS2Update(crc, data[i]!)
+  }
+  return crc
+}
+
 export function encodeMspV1Frame(command: number, payload: Uint8Array = new Uint8Array(0)): Uint8Array {
   const size = payload.length & 0xFF
   const frame = new Uint8Array(6 + payload.length)
@@ -162,6 +183,21 @@ export function encodeMspV1Frame(command: number, payload: Uint8Array = new Uint
   frame[4] = command & 0xFF
   frame.set(payload, 5)
   frame[5 + payload.length] = xorChecksum(size, frame[4], payload)
+  return frame
+}
+
+export function encodeMspV2NativeFrame(command: number, payload: Uint8Array = new Uint8Array(0)): Uint8Array {
+  const frame = new Uint8Array(9 + payload.length)
+  frame[0] = 0x24 // $
+  frame[1] = 0x58 // X
+  frame[2] = 0x3C // <
+  frame[3] = 0x00 // flags
+  frame[4] = command & 0xFF
+  frame[5] = (command >> 8) & 0xFF
+  frame[6] = payload.length & 0xFF
+  frame[7] = (payload.length >> 8) & 0xFF
+  frame.set(payload, 8)
+  frame[8 + payload.length] = crc8DvbS2(frame.subarray(3, 8 + payload.length))
   return frame
 }
 
@@ -263,10 +299,11 @@ function parseAttitudePayload(payload: Uint8Array): MspAttitudeFrame | null {
 }
 
 function parseSonarPayload(payload: Uint8Array): MspSonarFrame | null {
-  if (payload.length < 4) return null
+  if (payload.length < 5) return null
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
   return {
     distance: Number((view.getUint32(0, true) / 1000).toFixed(3)),
+    confidence: payload[4]!,
   }
 }
 
