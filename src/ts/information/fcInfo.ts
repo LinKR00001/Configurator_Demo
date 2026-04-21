@@ -173,8 +173,6 @@ export function useFCInfo() {
 
     const handleConnected = () => {
       startPolling()
-      void requestMspFcVersionOnce()
-      void requestMspUidOnce()
     }
 
     serialManager.addEventListener('connected', handleConnected)
@@ -201,7 +199,7 @@ export function useFCInfo() {
 
     // 若初始化时串口已处于连接状态，立即开始轮询
     if (serialManager.getConnected()) {
-      handleConnected()
+      startPolling()
     }
   }
 
