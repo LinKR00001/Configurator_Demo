@@ -230,10 +230,11 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
 
             if (tof.distance > 0.0f)
             {
-                tofDistanceMm = (uint32_t)tof.distance*1000.0f;
+                tofDistanceMm = tof.distance*1000.0f;
             }
 
             sbufWriteU32(dst, tofDistanceMm);
+            sbufWriteU8(dst, tof.confidence);
             break;
         }
 

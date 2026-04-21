@@ -4,6 +4,7 @@ import { MSP_CMD, useMsp } from '@/ts/msp/msp'
 import { ENABLE_MSP_PROTOCOL } from '@/ts/msp/protocolFlags'
 
 const POLL_INTERVAL_MS = 100
+const TOF_HISTORY_LIMIT = 80
 
 const opticalFlowData = ref({
   flowX: 0,
@@ -15,6 +16,9 @@ const tofData = ref({
   distance: 0,
   confidence: 0,
 })
+
+const tofHistory = ref<number[]>([])
+const tofConfidenceHistory = ref<number[]>([])
 
 const frameCount = ref(0)
 const opticalFlowFrameCount = ref(0)
@@ -38,11 +42,13 @@ function timestamp() {
   return `${now.toLocaleTimeString('zh-CN', { hour12: false })}.${ms}`
 }
 
-function applyTofDistance(distance: number) {
+function applyTofData(distance: number, confidence: number) {
   tofData.value = {
-    ...tofData.value,
     distance,
+    confidence,
   }
+  tofHistory.value = [...tofHistory.value.slice(-(TOF_HISTORY_LIMIT - 1)), distance]
+  tofConfidenceHistory.value = [...tofConfidenceHistory.value.slice(-(TOF_HISTORY_LIMIT - 1)), confidence]
   frameCount.value++
   tofFrameCount.value++
   tofUpdatedAt.value = timestamp()
@@ -80,6 +86,8 @@ function stopPolling() {
     tofFlashTimer = null
   }
   tofActive.value = false
+  tofHistory.value = []
+  tofConfidenceHistory.value = []
 }
 
 export function useSensorInfo() {
@@ -93,7 +101,7 @@ export function useSensorInfo() {
   onMounted(() => {
     unbindSonarMessage = onSonarMessage((sonar) => {
       if (!ENABLE_MSP_PROTOCOL) return
-      applyTofDistance(sonar.distance)
+      applyTofData(sonar.distance, sonar.confidence)
     })
 
     serial.addEventListener('connected', handleConnected)
@@ -112,6 +120,8 @@ export function useSensorInfo() {
   return {
     opticalFlowData,
     tofData,
+    tofHistory,
+    tofConfidenceHistory,
     frameCount,
     opticalFlowFrameCount,
     tofFrameCount,
