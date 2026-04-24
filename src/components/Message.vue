@@ -98,6 +98,7 @@ const requestDeviceInfo = () => {
 
 const handleConnected = () => {
   isConnected.value = true
+  requestDeviceInfo()
 }
 const handleDisconnected = () => {
   isConnected.value = false
@@ -127,6 +128,9 @@ onMounted(() => {
   isConnected.value = serialManager.getConnected()
   serialManager.addEventListener('connected', handleConnected)
   serialManager.addEventListener('disconnected', handleDisconnected)
+  if (isConnected.value) {
+    requestDeviceInfo()
+  }
 })
 
 onUnmounted(() => {
