@@ -222,33 +222,53 @@ const MSP2_SENSOR_CONFIG_ACTIVE = 0x300A
 const SENSOR_NOT_AVAILABLE = 0xFF
 
 const lookupTableGyroHardware = [
-  'NONE', 'AUTO', 'MPU6050', 'L3GD20', 'MPU6000', 'MPU6500', 'MPU9250',
-  'ICM20601', 'ICM20602', 'ICM20608G', 'ICM20649', 'ICM20689', 'ICM42605',
-  'ICM42688P', 'BMI160', 'BMI270', 'LSM6DSO', 'LSM6DSV16X', 'IIM42653',
-  'ICM45605', 'ICM45686', 'ICM40609D', 'IIM42652', 'LSM6DSK320X', 'ICM42622P','BMI088',
-  'VIRTUAL'
+  'GYRO_NONE',            // 0
+  'GYRO_DEFAULT',         // 1
+  'GYRO_QMI8658',         // 2
+  'GYRO_MPU6000',         // 3
+  'GYRO_ICM20689',        // 4
+  'GYRO_ICM42688P',       // 5
+  'GYRO_ICM42622P',       // 6
+  'GYRO_IIM42652',        // 7
+  'GYRO_BMI270',          // 8
+  'GYRO_LSM6DSV16X',      // 9
+  'GYRO_LSM6DSK320X',     // 10
+  'GYRO_BMI088',          // 11
 ]
 
 const lookupTableAccHardware = [
-  'AUTO', 'NONE', 'MPU6050', 'MPU6000', 'MPU6500', 'MPU9250', 'ICM20601',
-  'ICM20602', 'ICM20608G', 'ICM20649', 'ICM20689', 'ICM42605', 'ICM42688P',
-  'BMI160', 'BMI270', 'LSM6DSO', 'LSM6DSV16X', 'IIM42653', 'ICM45605', 'ICM45686',
-  'ICM40609D', 'IIM42652', 'LSM6DSK320X', 'ICM42622P','BMI088','VIRTUAL'
+  'ACC_NONE',             // 0
+  'ACC_DEFAULT',          // 1
+  'ACC_QMI8658',          // 2
+  'ACC_MPU6000',          // 3
+  'ACC_ICM20689',         // 4
+  'ACC_ICM42688P',        // 5
+  'ACC_ICM42622P',        // 6
+  'ACC_IIM42652',         // 7
+  'ACC_BMI270',           // 8
+  'ACC_LSM6DSV16X',       // 9
+  'ACC_LSM6DSK320X',      // 10
+  'ACC_BMI088',           // 11
 ]
 
 const lookupTableBaroHardware = [
-  'AUTO', 'NONE', 'BMP085', 'MS5611', 'BMP280', 'LPS', 'QMP6988', 'BMP388',
-  'DPS310', '2SMPB_02B', 'LPS22DF', 'BMP580', 'BMP581', 'VIRTUAL'
+  'BARO_DEFAULT',         // 0
+  'BARO_NONE',            // 1
+  'BARO_SL06',            // 2
 ]
 
 const lookupTableRangefinderHardware = [
-  'NONE', 'HCSR04', 'TFMINI', 'TF02', 'MTF01', 'MTF02', 'MTF01P', 'MTF02P',
-  'TFNOVA', 'NOOPLOOP_F2', 'NOOPLOOP_F2P', 'NOOPLOOP_F2PH', 'NOOPLOOP_F',
-  'NOOPLOOP_FP', 'NOOPLOOP_F2MINI'
+  'RANGEFINDER_NONE',              // 0
+  'RANGEFINDER_VL53L1',           // 1
+  'RANGEFINDER_VI5300',           // 2
+  'RANGEFINDER_ADS6102',          // 3
+  'RANGEFINDER_EXTERNAL_SENSOR',  // 4
 ]
 
 const lookupTableOpticalflowHardware = [
-  'NONE', 'MT'
+  'OPTICALFLOW_NONE',              // 0
+  'OPTICALFLOW_PAA3905',          // 1
+  'OPTICALFLOW_EXTERNAL_SENSOR',  // 2
 ]
 
 type SensorKind = 'gyro' | 'acc' | 'baro' | 'mag' | 'rangefinder' | 'opticalflow'
